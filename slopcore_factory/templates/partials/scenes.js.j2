@@ -1,0 +1,9 @@
+{% for scene in scenes %}{% for event in scene.events %}
+{% if event.kind == "scene_bars" %}
+        tl.fromTo("{{ event.target }}", { scaleY: 0.15 }, { scaleY: 1, duration: 0.5, repeat: -1, yoyo: true, ease: "sine.inOut", stagger: { each: 0.05 } }, {{ event.at }});
+{% elif event.kind == "scene_marquee" %}
+        tl.fromTo("{{ event.target }}", { xPercent: 0 }, { xPercent: -50, duration: {{ event.duration }}, ease: "none" }, {{ event.at }});
+{% elif event.kind == "scene_scan" %}
+        tl.fromTo("{{ event.target }}", { backgroundPositionY: "0px" }, { backgroundPositionY: "220px", duration: 7, repeat: -1, ease: "none" }, {{ event.at }});
+{% endif %}
+{% endfor %}{% endfor %}

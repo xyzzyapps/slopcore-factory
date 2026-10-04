@@ -1,0 +1,11 @@
+{% for scene in scenes %}
+{% if scene.kind == "custom" and scene.markup %}
+    <div class="scene scene-custom" id="{{ scene.id }}" data-layout-allow-overlap aria-hidden="true">{{ scene.markup | safe }}</div>
+{% elif scene.kind == "bars" %}
+    <div class="scene scene-bars" id="{{ scene.id }}" data-layout-allow-overlap aria-hidden="true">{% for _ in range(scene.bars) %}<span class="bar"></span>{% endfor %}</div>
+{% elif scene.kind == "marquee" %}
+    <div class="scene scene-marquee" id="{{ scene.id }}" data-layout-allow-overlap aria-hidden="true"><div class="track">{% for word in scene.words %}<span>{{ word }}</span>{% endfor %}{% for word in scene.words %}<span>{{ word }}</span>{% endfor %}</div></div>
+{% elif scene.kind == "scan" %}
+    <div class="scene scene-scan" id="{{ scene.id }}" data-layout-allow-overlap aria-hidden="true"></div>
+{% endif %}
+{% endfor %}

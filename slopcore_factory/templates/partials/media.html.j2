@@ -1,0 +1,7 @@
+{% for tile in media %}
+{% if tile.is_image %}
+    <img class="clip media" id="{{ tile.id }}" src="{{ tile.src }}" data-start="{{ tile.start }}" data-duration="{{ tile.duration }}" data-track-index="0">
+{% else %}
+    <video class="clip media" id="{{ tile.id }}" muted playsinline src="{{ tile.src }}" data-start="{{ tile.start }}" data-duration="{{ tile.duration }}" data-media-start="{{ tile.media_start }}" data-track-index="0"></video>
+{% endif %}
+{% endfor %}

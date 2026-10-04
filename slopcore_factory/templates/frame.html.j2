@@ -1,0 +1,84 @@
+<template>
+  <div id="stage" data-composition-id="{{ composition_id }}" data-width="{{ width }}" data-height="{{ height }}" data-duration="{{ duration }}">
+    <style>
+{{ fonts_css | safe }}
+      #stage {
+        position: relative; width: 100%; height: 100%; overflow: hidden;
+        background: {{ theme.bg }}; container-type: size;
+        font-family: "{{ theme.font_body }}", system-ui, sans-serif;
+      }
+      .group { position: absolute; inset: 0; opacity: 0; }
+      .media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+      .kick {
+        position: absolute; left: 5.5cqw; top: 5.5cqw;
+        font-family: "{{ theme.font_mono }}", monospace; font-weight: 500;
+        font-size: 0.72cqw; letter-spacing: 0.14em; text-transform: uppercase; color: {{ theme.accent }};
+      }
+      .line {
+        position: absolute; left: 5.5cqw; right: 5.5cqw; bottom: 18cqw;
+        font-weight: 700; font-size: {{ theme.line_size }}cqw; line-height: 1.1;
+        letter-spacing: {{ theme.letter_spacing }}em; color: {{ theme.cream }}; text-transform: lowercase;
+        text-shadow: 0 2px 18px rgba(0, 0, 0, 0.85);
+      }
+      .word {
+        position: absolute; left: 5.5cqw; bottom: 12cqw;
+        font-weight: 900; font-size: {{ theme.word_size }}cqw; line-height: 0.9;
+        letter-spacing: -0.04em; color: {{ theme.cream }}; text-transform: lowercase;
+        text-shadow: 0 3px 22px rgba(0, 0, 0, 0.85);
+      }
+      .mark {
+        position: absolute; left: 5.5cqw; bottom: 14cqw;
+        font-weight: 900; font-size: 13cqw; line-height: 0.9;
+        letter-spacing: -0.04em; color: {{ theme.cream }}; text-transform: lowercase;
+        text-shadow: 0 3px 22px rgba(0, 0, 0, 0.85);
+      }
+      .tag {
+        position: absolute; left: 5.8cqw; bottom: 9cqw;
+        font-weight: 400; font-size: 1.6cqw; line-height: 1.5; color: rgba(240, 236, 229, 0.78);
+        text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+      }
+      .accent { color: {{ theme.accent }}; }
+      .scrim {
+        position: absolute; inset: 0; pointer-events: none;
+        background: linear-gradient(180deg, {{ theme.scrim_top }} {{ theme.scrim_stop }}, {{ theme.scrim_bottom }} 100%);
+      }
+      .grain {
+        position: absolute; inset: 0; pointer-events: none; opacity: {{ theme.grain_opacity }}; mix-blend-mode: overlay;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+      }
+      .scene { position: absolute; inset: 0; pointer-events: none; }
+      .scene-bars { display: flex; align-items: flex-end; gap: 1.2cqw; padding: 0 6cqw 7cqw; }
+      .scene-bars .bar {
+        flex: 1; height: 24cqw; transform-origin: bottom; opacity: 0.30;
+        background: linear-gradient(180deg, rgba(240, 236, 229, 0), {{ theme.accent }});
+      }
+      .scene-marquee { overflow: hidden; display: flex; align-items: center; }
+      .scene-marquee .track {
+        display: flex; gap: 3cqw; white-space: nowrap; will-change: transform;
+        font-family: "{{ theme.font_display }}", sans-serif; font-weight: 900; font-size: 9cqw;
+        letter-spacing: -0.03em; text-transform: lowercase; color: rgba(240, 236, 229, 0.07);
+      }
+      .scene-scan {
+        background-image: repeating-linear-gradient(180deg, rgba(240, 236, 229, 0.05) 0px, rgba(240, 236, 229, 0.05) 2px, rgba(0, 0, 0, 0) 2px, rgba(0, 0, 0, 0) 6px);
+      }
+    </style>
+
+{% include "partials/media.html.j2" %}
+{% include "partials/scenes.html.j2" %}
+
+    <div class="scrim"></div>
+    <div class="grain"></div>
+{% include "partials/group.html.j2" %}
+
+    <script>
+      (function () {
+        var tl = gsap.timeline({ paused: true });
+{% include "partials/timeline.js.j2" %}
+{% include "partials/scenes.js.j2" %}
+        tl.seek(0);
+        window.__timelines = window.__timelines || {};
+        window.__timelines["{{ composition_id }}"] = tl;
+      })();
+    </script>
+  </div>
+</template>

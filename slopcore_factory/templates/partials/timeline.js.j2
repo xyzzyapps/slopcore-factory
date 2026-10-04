@@ -1,0 +1,14 @@
+{% for event in events %}
+{% if event.kind == "show_group" %}
+        tl.set("#{{ event.target }}", { autoAlpha: 1 }, {{ event.at }});
+{% elif event.kind == "hide_group" %}
+        tl.set("#{{ event.target }}", { autoAlpha: 0 }, {{ event.at }});
+{% elif event.kind == "reveal_mark" %}
+        tl.fromTo("#{{ event.target }}", { autoAlpha: 0, y: 22 }, { autoAlpha: 1, y: 0, duration: 0.7, ease: "power3.out" }, {{ event.at }});
+{% elif event.kind == "reveal_tag" %}
+        tl.fromTo("#{{ event.target }}", { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.6 }, {{ event.at }});
+{% elif event.kind == "reveal_line" %}
+        tl.fromTo("#{{ event.target }}", { autoAlpha: 0, y: 26 }, { autoAlpha: 1, y: 0, duration: {{ event.duration }}, ease: "power3.out" }, {{ event.at }});
+        tl.set("#{{ event.target }}", { autoAlpha: 0 }, {{ event.hide_at }});
+{% endif %}
+{% endfor %}

@@ -1,0 +1,5 @@
+-r requirements.txt
+librosa>=0.10
+pytest>=8
+ruff>=0.6
+black>=24

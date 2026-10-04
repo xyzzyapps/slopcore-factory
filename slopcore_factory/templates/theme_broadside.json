@@ -1,0 +1,26 @@
+{
+  "name": "broadside",
+  "bg": "#111111",
+  "ink": "#1A1A18",
+  "accent": "#E85D26",
+  "cream": "#F0ECE5",
+  "muted": "#888880",
+  "font_display": "Barlow",
+  "font_body": "Barlow",
+  "font_mono": "IBM Plex Mono",
+  "fonts": {
+    "400": "barlow-400.woff2",
+    "700": "barlow-700.woff2",
+    "900": "barlow-900.woff2",
+    "mono500": "plex-mono-500.woff2"
+  },
+  "grain_opacity": 0.06,
+  "scrim": {
+    "top": "rgba(17, 17, 17, 0)",
+    "bottom": "rgba(12, 12, 12, 0.86)",
+    "stop": "30%"
+  },
+  "line_size": 5.6,
+  "word_size": 12.0,
+  "letter_spacing": -0.02
+}

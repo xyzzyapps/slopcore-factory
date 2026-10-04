@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slopcore-factory"
+version = "0.1.0"
+description = "Headless lyrics-to-video factory that emits a HyperFrames project and renders an MP4."
+readme = "README.md"
+license = "LicenseRef-PolyForm-Noncommercial-1.0.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = [
+  "jinja2>=3.1",
+  "pyyaml>=6.0",
+  "numpy>=1.26",
+  "soundfile>=0.12",
+  "faster-whisper>=1.0",
+]
+
+[project.optional-dependencies]
+beats = ["librosa>=0.10"]
+llm = ["langchain>=0.3", "langchain-anthropic>=0.3"]
+dev = ["pytest>=8", "ruff>=0.6", "black>=24"]
+
+[project.scripts]
+slopcore-factory = "slopcore_factory.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["slopcore_factory*"]
+
+[tool.setuptools.package-data]
+slopcore_factory = ["templates/**/*", "templates/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [".venv", "songs", "work", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# the LLM schema hint is a deliberately wide literal block
+"slopcore_factory/blueprint_gen.py" = ["E501"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
