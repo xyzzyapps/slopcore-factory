@@ -126,3 +126,17 @@ lyrics + lipsync, upper budget" -> MP4. User decisions recorded.
 
 ## Discovered (needs approval before doing)
 - [x] MoviePy backend — DECLINED. HyperFrames only. No `moviepy_compose.py`, no `--backend`.
+
+## Maintenance
+- [x] Dead-code audit + cleanup: removed unused protocols (`ClipProvider`, `Planner`,
+      `SongProvider`, `Renderer`), `SubprocessRunner.echo`/`run_or_raise`,
+      `ServiceLocator.has`/`clear`, `StageCache.invalidate`, `render.write_json`,
+      `localgen.BACKENDS`, `Theme.font_ref`, `Group.title`/`accent_line`, `Frame.end`,
+      `Storyboard.frame_duration_sum`, `Budgets.with_buffer`.
+- [x] Unified clip generation: deleted `clips.py`; the pipeline's `media` stage and the
+      `clips` command both use `clipgen` (blueprint-driven, audio-conditioned, guarded).
+      Dropped the now-dead `clip_prompts`/`clip_style` config keys.
+- [x] README rewritten for absolute beginners (install, song folder, first run,
+      five-command walkthrough, REPL, cheat-sheet, free vs paid, troubleshooting, glossary).
+- [x] Verified after cleanup: 75 tests pass, ruff clean, `check` on please-continue 0/0,
+      `clips` (supplied) resolves 0 with no API.

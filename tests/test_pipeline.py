@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from conftest import FakeRenderer, FakeRunner, FakeTranscriber
 
+from slopcore_factory.blueprint import Blueprint, SeedanceClip, Shot, ShotType, save_blueprint
 from slopcore_factory.config import build_spec
+from slopcore_factory.errors import SlopcoreFactoryError
 from slopcore_factory.locator import ServiceLocator
 from slopcore_factory.pipeline import Pipeline
 from slopcore_factory.song import SuppliedSongProvider
@@ -57,7 +60,7 @@ def test_pipeline_renders(
     results = pipeline.run(until="render", skip={"snapshot"})
 
     assert not pipeline.failed(), [(r.stage, r.status, r.detail) for r in results]
-    out = tmp_path / "renders" / f"{spec.song_id}.mp4"
+    out = tmp_path / "renders" / f"{spec.out_dir.name}.mp4"
     assert out.exists()
 
 
@@ -98,3 +101,62 @@ def test_resume_uses_cache(
     results = second.run(until="align", skip={"snapshot"})
     assert not second.failed(), [(r.stage, r.status, r.detail) for r in results]
     assert any(r.stage == "align" and r.detail == "cached" for r in results)
+
+
+class FakeClipGenerator:
+    """Stands in for the paid Seedance provider."""
+
+    def generate(self, entry, out_dir):  # noqa: ANN001
+        out_dir = Path(out_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f"{entry.clip}.mp4"
+        path.write_bytes(b"clip")
+        return path
+
+
+def test_media_generate_clips_uses_blueprint(
+    tmp_path: Path, lyrics_file: Path, fake_audio: Path
+) -> None:
+    spec = build_spec(lyrics_file, tmp_path / "project", audio_path=fake_audio)
+    spec.generate_clips = True
+    work = tmp_path / "work"
+    work.mkdir()
+    blueprint = Blueprint(
+        title="t",
+        duration=10.0,
+        shots=[
+            Shot(
+                id="s1",
+                t0=0.0,
+                t1=10.0,
+                motion_tier="seedance",
+                seedance_clip="ls01",
+                type=[ShotType(0, "subtitle")],
+            )
+        ],
+        seedance=[SeedanceClip("ls01", 5.0)],
+    )
+    save_blueprint(blueprint, work / "blueprint.yaml")
+
+    services = ServiceLocator()
+    services.register_instance("runner", FakeRunner())
+    services.register_instance("clip_generator", FakeClipGenerator())
+    pipeline = Pipeline(spec, services, work)
+
+    result = pipeline._do_media(force=True)
+    assert result.status == "DONE"
+    assert pipeline.backgrounds and pipeline.backgrounds[0].exists()
+
+
+def test_media_generate_clips_needs_blueprint(
+    tmp_path: Path, lyrics_file: Path, fake_audio: Path
+) -> None:
+    spec = build_spec(lyrics_file, tmp_path / "project", audio_path=fake_audio)
+    spec.generate_clips = True
+    services = ServiceLocator()
+    services.register_instance("runner", FakeRunner())
+    services.register_instance("clip_generator", FakeClipGenerator())
+    pipeline = Pipeline(spec, services, tmp_path / "work")
+
+    with pytest.raises(SlopcoreFactoryError):
+        pipeline._do_media(force=True)

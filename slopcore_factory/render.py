@@ -7,7 +7,6 @@ reproducible across machines.
 
 from __future__ import annotations
 
-import json
 import shutil
 from pathlib import Path
 
@@ -28,7 +27,7 @@ def resolve_npx() -> str:
 
 
 class HyperframesRenderer:
-    """Default :class:`~slopcore_factory.interfaces.Renderer` implementation."""
+    """The renderer the pipeline uses: a thin wrapper over the HyperFrames CLI."""
 
     def __init__(self, version: str, runner: CommandRunner, skill: str = "music-to-video") -> None:
         self.version = version
@@ -95,7 +94,3 @@ class HyperframesRenderer:
                 except (ValueError, IndexError):
                     pass
         return summary
-
-
-def write_json(path: Path, payload: dict) -> None:
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")

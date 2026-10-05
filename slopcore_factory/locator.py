@@ -38,13 +38,6 @@ class ServiceLocator:
         self._instances[name] = instance
         return instance
 
-    def has(self, name: str) -> bool:
-        return name in self._factories or name in self._instances
-
-    def clear(self) -> None:
-        self._instances.clear()
-        self._factories.clear()
-
 
 # A process-wide default locator. Tests may build their own.
 locator = ServiceLocator()

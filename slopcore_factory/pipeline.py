@@ -228,8 +228,28 @@ class Pipeline:
                 )
 
         if self.spec.generate_clips:
-            provider = self.services.get("clip_provider")
-            self.backgrounds = [Path(p) for p in provider.acquire(self.spec, self._lyrics_doc())]
+            # one clip path only: the blueprint's Seedance entries, via clipgen
+            from .blueprint import load_blueprint, save_blueprint
+            from .budget import guard
+            from .clipgen import generate_seedance_clips
+
+            blueprint_path = self.work_dir / "blueprint.yaml"
+            if not blueprint_path.exists():
+                raise SlopcoreFactoryError(
+                    "--generate-clips needs a blueprint; run the `blueprint` command first"
+                )
+            blueprint = load_blueprint(blueprint_path)
+            guard(blueprint)
+            provider = self.services.get(
+                "clip_generator",
+                reference_audio=self.spec.audio_path,
+                quality=str(self.spec.extra.get("clip_quality", "720p")),
+            )
+            paths = generate_seedance_clips(
+                blueprint, provider, Path(self.spec.out_dir) / "assets" / "clips"
+            )
+            save_blueprint(blueprint, blueprint_path)
+            self.backgrounds = list(paths.values())
         else:
             self.backgrounds = prepare_background(
                 self.spec, self.work_dir / "media", self._runner()

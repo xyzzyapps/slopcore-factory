@@ -134,7 +134,7 @@ clips avsync covers review repl`. REPL mirrors all of it, plus `dryrun on|off` a
 
 ## 10. Testing
 
-73+ pytest tests, all offline: models, lyrics, timing/align, storyboard, compose, blueprint
+75+ pytest tests, all offline: models, lyrics, timing/align, storyboard, compose, blueprint
 schema + validation, budget, dry-run providers, clip resolution, avsync on synthetic wavs,
 covers, compiler, scenes, review, REPL, and the yue2 adapter (against a fake yue2 CLI).
 `ruff` + `black` clean.

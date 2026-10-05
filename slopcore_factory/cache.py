@@ -69,8 +69,3 @@ class StageCache:
             "outputs": [str(p) for p in (outputs or [])],
         }
         marker.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-
-    def invalidate(self, stage: str) -> None:
-        marker = self._marker(stage)
-        if marker.exists():
-            marker.unlink()

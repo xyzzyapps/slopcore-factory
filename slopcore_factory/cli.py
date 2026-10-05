@@ -17,7 +17,7 @@ import re
 import sys
 from pathlib import Path
 
-from .clips import SeedanceClipProvider
+from .clipgen import EvoLinkClipProvider
 from .config import build_spec
 from .locator import ServiceLocator
 from .logging_setup import get_logger, setup_logging
@@ -238,7 +238,7 @@ def _services(spec) -> ServiceLocator:
     services.register_instance("aligner", LineAligner())
     services.register_instance("transcriber", WhisperTranscriber(spec.whisper_model, spec.language))
     services.register_instance("song_provider", _song_provider(spec))
-    services.register_instance("clip_provider", SeedanceClipProvider())
+    services.register("clip_generator", EvoLinkClipProvider)
     services.register_instance("renderer", HyperframesRenderer(spec.hyperframes_version, runner))
 
     if is_dry_run(spec):

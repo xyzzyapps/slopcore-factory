@@ -99,8 +99,6 @@ def build_spec(
     extra_keys = (
         "taglines",
         "hook_sections",
-        "clip_prompts",
-        "clip_style",
         "negative_tags",
         "style",
         "suno_take",

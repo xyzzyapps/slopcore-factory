@@ -184,11 +184,6 @@ class Budgets:
     images_usd: float = 0.0
     total_usd: float = 0.0
 
-    @property
-    def with_buffer(self) -> float:
-        """Planned spend is expected to overshoot; expose it for the guard."""
-        return round(self.total_usd, 2)
-
 
 @dataclass
 class Blueprint:

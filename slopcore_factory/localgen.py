@@ -115,12 +115,3 @@ class AceStepSongProvider(LocalSongProvider):
         "install ACE-Step (https://github.com/ace-step/ACE-Step) and set "
         "SLOPCORE_ACE_STEP_CMD to a wrapper that accepts --request/--out"
     )
-
-
-BACKENDS = {
-    "supplied": None,
-    "suno": None,
-    "dryrun": None,
-    "yue": YuESongProvider,
-    "ace_step": AceStepSongProvider,
-}

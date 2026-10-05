@@ -37,7 +37,7 @@ def test_frames_cover_the_whole_song(tmp_path: Path, lyrics_file: Path) -> None:
     duration = cues[-1].end + 3.0
     sb = plan_storyboard(_spec(tmp_path, lyrics_file), doc, cues, duration)
     assert sb.frames[0].start == 0.0
-    assert abs(sb.frame_duration_sum - duration) < 0.01
+    assert abs(sum(frame.duration for frame in sb.frames) - duration) < 0.01
 
 
 def test_frames_are_contiguous(tmp_path: Path, lyrics_file: Path) -> None:

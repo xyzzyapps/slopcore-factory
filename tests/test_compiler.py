@@ -49,7 +49,7 @@ def test_compiles_frames_from_shots(lyrics_file: Path) -> None:
     assert storyboard.frames[0].groups
     assert storyboard.frames[0].groups[0].cues[0].index == 0
     assert storyboard.accent_word == "continue"
-    assert storyboard.frame_duration_sum == 20.0
+    assert sum(frame.duration for frame in storyboard.frames) == 20.0
 
 
 def test_group_ids_are_css_safe(lyrics_file: Path) -> None:

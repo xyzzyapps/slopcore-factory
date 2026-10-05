@@ -150,10 +150,6 @@ class Theme:
     word_size: float = 12.0  # cqw
     letter_spacing: float = -0.02
 
-    def font_ref(self, weight: int) -> str:
-        """Relative asset path for the vendored font of a given weight."""
-        return f"assets/fonts/{self.fonts.get(str(weight), Path(''))}"
-
 
 # ---------------------------------------------------------------------------
 # Storyboard
@@ -172,8 +168,6 @@ class Group:
     kicker: str = ""
     mark: str | None = None
     tag: str | None = None
-    title: str | None = None
-    accent_line: int | None = None  # index (within cues) rendered in accent colour
 
 
 @dataclass
@@ -207,10 +201,6 @@ class Frame:
     background: Path | None = None
     kicker: str = ""
 
-    @property
-    def end(self) -> float:
-        return self.start + self.duration
-
 
 @dataclass
 class Storyboard:
@@ -225,10 +215,6 @@ class Storyboard:
     frames: list[Frame] = field(default_factory=list)
     beat_grid: BeatGrid | None = None
     accent_word: str | None = None  # most-common content word, highlighted in the type
-
-    @property
-    def frame_duration_sum(self) -> float:
-        return sum(frame.duration for frame in self.frames)
 
 
 # ---------------------------------------------------------------------------
