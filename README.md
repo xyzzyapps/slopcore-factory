@@ -234,7 +234,45 @@ graphics — no mouth movement.
 
 ---
 
-## 9. Troubleshooting
+## 9. External services used
+
+Nothing outside your machine runs on a supplied-assets job except the two build-time
+services at the bottom. The paid and network services only run when you ask for them.
+
+### Only when you explicitly opt in
+
+| Service | Used for | When it runs | Cost |
+|---|---|---|---|
+| **EvoLink** — `api.evolink.ai` | Suno song generation (`suno-v6-beta`) | `--song-backend suno` | ~$0.118 per request (4 takes) |
+| **EvoLink** — `api.evolink.ai` | Seedance 2.5 clips (`seedance-2.5-reference-to-video`) | `clips --generate-clips` | 480p $0.138/s, 720p $0.296/s |
+| **EvoLink Files** — `files-api.evolink.ai` | uploads image references (via the `slopcore-hf` client) | same as above | free |
+| **uguu.se** (primary) / **tmpfiles.org** (fallback) | hosts the audio slice so Seedance can lip-sync to it (`@Audio1`) | `clips --generate-clips`, singing windows only | free, anonymous |
+| **Your LLM provider** (Anthropic/OpenAI/...) via LangChain | AI storyboard (`blueprint --llm`) | only when `SLOPCORE_FACTORY_LLM` is set | your provider's rates |
+| **Hugging Face Hub** | YuE2 weights (`m-a-p/YuE2-3B`, `m-a-p/YuE2-Vae`) | `--song-backend yue` | free download, ~7 GB |
+
+Keys: `EVOLINK_API_KEY` for EvoLink; `SLOPCORE_FACTORY_LLM` plus your provider's key for
+the LLM; `SLOPCORE_YUE_CMD` / `SLOPCORE_ACE_STEP_CMD` for the local song models.
+
+### Always used (build/render time)
+
+| Service | Used for | Notes |
+|---|---|---|
+| **npm registry** (`npx`) | downloads the pinned HyperFrames CLI (`hyperframes@0.8.116`) | first run downloads it; needs Node |
+| **jsDelivr CDN** | the generated project loads GSAP 3.14.2 from `cdn.jsdelivr.net` | needs internet when you preview or render |
+| **Hugging Face Hub** | faster-whisper model, when there is no `transcript.json` | `small.en`, downloaded once |
+
+Configured but unused unless you install registry blocks: the HyperFrames registry URL
+(`raw.githubusercontent.com/heygen-com/hyperframes`) in the generated `hyperframes.json`.
+
+### Privacy note
+
+The temporary file host (uguu.se / tmpfiles.org) is **anonymous and public**. The audio
+slice it receives is a short excerpt of your song, retrievable by anyone with the URL for
+48 hours (uguu) or 60 minutes (tmpfiles). It is used only on the paid clip-generation path,
+and only for the seconds of audio a singing window needs. If that is not acceptable, do not
+run `clips --generate-clips` — supply your own clips instead.
+
+## 10. Troubleshooting
 
 | Problem | Fix |
 |---|---|
@@ -248,7 +286,7 @@ graphics — no mouth movement.
 
 ---
 
-## 10. Glossary
+## 11. Glossary
 
 - **Lyrics file** (`lyrics.md`) — your words, grouped by `[Section]` tags.
 - **Storyboard / blueprint** — the plan: shots, timing, on-screen text, camera.
@@ -264,7 +302,7 @@ graphics — no mouth movement.
 
 ---
 
-## 11. Tests and license
+## 12. Tests and license
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q      # all offline
