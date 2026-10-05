@@ -81,7 +81,7 @@ songs/my-song/
 
 Minimal `lyrics.md` (a `[Section]` header, then one line per line):
 
-```markdown
+````markdown
 # MY SONG
 
 ```
@@ -95,7 +95,7 @@ I know your coffee's cold
 [Chorus]
 Please continue
 ```
-```
+````
 
 Nothing else is required to start. If you don't have `transcript.json`, the tool can make
 one with Whisper (slower, local); if you don't have clips, it can synthesise a plain
