@@ -109,13 +109,22 @@ def generate_clips(
     Dry-run writes local placeholders; otherwise the paid provider runs behind
     the budget guard.
     """
-    from .clipgen import EvoLinkClipProvider, SuppliedClipProvider, generate_seedance_clips
+    from .clipgen import (
+        EvoLinkClipProvider,
+        SuppliedClipProvider,
+        generate_seedance_clips,
+        reference_images,
+    )
     from .dryrun import DryRunClipProvider, is_dry_run
 
     blueprint = ensure_blueprint(spec, work, services)
     if spec.generate_clips:
         guard(blueprint)
-        provider = EvoLinkClipProvider(reference_audio=spec.audio_path, quality=quality)
+        provider = EvoLinkClipProvider(
+            reference_audio=spec.audio_path,
+            quality=quality,
+            reference_images=reference_images(Path(spec.lyrics_path).parent),
+        )
     elif is_dry_run(spec):
         provider = DryRunClipProvider()
     else:
@@ -203,3 +212,35 @@ def review(
     report = reviews_dir / "review.md"
     report.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return times, paths, report
+
+
+def render_overlay(spec: FactorySpec, work: Path, services) -> Path:
+    """Render the lyrics-only layer as a transparent ProRes 4444 MOV.
+
+    Composes a transparent, media-less variant of the project (no clips, scrim or
+    grain) and renders it with HyperFrames' alpha-preserving MOV format, so the
+    text can be layered over the footage in an NLE.
+    """
+    from .compose import compose_project
+    from .pipeline import unique_path
+    from .theme import load_theme
+
+    pipeline = Pipeline(spec, services, work)
+    pipeline.run(until="plan", skip={"snapshot"})
+    storyboard = pipeline.storyboard
+    if storyboard is None:
+        raise RuntimeError("overlay needs a storyboard (run the plan stage first)")
+    project = Path(spec.out_dir).parent / f"{Path(spec.out_dir).name}-lyrics"
+    compose_project(
+        spec,
+        storyboard,
+        load_theme(spec.theme_name),
+        pipeline._ensure_transcript(),
+        services.get("runner"),
+        project_dir=project,
+        overlay=True,
+    )
+    out = unique_path(
+        (Path(spec.out_dir).parent / "renders" / f"{Path(spec.out_dir).name}-lyrics.mov").resolve()
+    )
+    return services.get("renderer").render(project, out, spec.fps, fmt="mov", workers=1)

@@ -5,7 +5,7 @@ can preview, and an MP4 you can watch.
 
 It does three things:
 
-1. **Storyboard** — reads the lyrics and writes a plan (`blueprint.yaml`): which shot
+1. **Storyboard** — reads the lyrics and writes a plan (`storyboard.md`): which shot
    happens when, what the words look like on screen, where the camera is.
 2. **Timing** — lines the lyrics up with the song, word by word, and plans the moments
    where a singer would be on camera ("lipsync windows").
@@ -54,7 +54,7 @@ Check it worked:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-You should see `75 passed` (or similar). If you do, everything is installed.
+You should see `104 passed` (or similar). If you do, everything is installed.
 
 > Every command below starts with `.\.venv\Scripts\slopcore-factory.exe`. That's just "run
 > the tool from this project's Python environment". You must run it from the
@@ -74,6 +74,8 @@ songs/my-song/
     clips/             <-- your video clips (or use --background)
       c1.mp4
       c2.mp4
+    ref/               <-- optional character images (up to 6) for generated clips
+      01-face.png
   transcript.json      <-- optional: word timings, if you already have them
   audiomap.json        <-- optional: beat grid
   song.json            <-- optional: settings (title, budget, ...)
@@ -156,9 +158,11 @@ $out = "songs/my-song-video"
 | What | Where |
 |---|---|
 | The video project (HTML/JS) | `songs/<out>/index.html` |
-| The storyboard plan | `songs/<out>.work/blueprint.yaml` |
+| The storyboard plan | `songs/<out>/storyboard.md` |
 | Review pictures + report | `songs/<out>/reviews/review.md` |
 | **The finished video** | `songs/renders/<out>.mp4` |
+| Lyrics-only layer (alpha) | `songs/renders/<out>-lyrics.mov` |
+| Editor timeline (OpenTimelineIO) | `songs/renders/<out>.otio` |
 
 Rendering takes a few minutes for a 3-minute song.
 
@@ -173,12 +177,14 @@ If you'd rather type commands one at a time:
 ```
 
 ```
-slopcore> blueprint gen     # write the plan (offline)
+slopcore> storyboard write  # write storyboard.md (the plan) beside the lyrics
+slopcore> storyboard        # print it
+slopcore> storyboard run    # execute it: align -> generate -> build -> check -> render
+slopcore> storyboard shot sh03   # inspect one shot (times, lyrics, prompt)
+slopcore> treat list        # the ffmpeg treatments per shot
+slopcore> treat sh02 slow   # set + run a treatment
 slopcore> analyze           # find the gaps between words
-slopcore> lipsync           # plan the lipsync windows
-slopcore> clips             # use clips you supplied (no API)
 slopcore> review            # stills + report
-slopcore> render            # make the MP4
 slopcore> quit
 ```
 
@@ -191,13 +197,15 @@ Type `help` inside the shell to list everything.
 | Command | What it does |
 |---|---|
 | `init` | creates an empty song folder to start from |
-| `blueprint` | writes the storyboard plan (`blueprint.yaml`) |
+| `blueprint` | writes the legacy plan (`blueprint.yaml`) |
+| `storyboard` | prints the plan, writes `storyboard.md`, or runs it (`storyboard run`) |
 | `analyze` | finds word gaps (needed for lipsync planning) |
 | `lipsync` | plans the lipsync windows into the plan |
 | `clips` | resolves the clips the plan asks for (supplied by default) |
 | `avsync` | measures how far a generated clip drifts from the song |
 | `covers` | plans a "cover" clip for the parts that drifted |
 | `review` | takes stills at key moments and writes a report |
+| `overlay` | renders the lyrics-only layer (text only, transparent) as a MOV for an editor |
 | `build` | builds the video project |
 | `check` | lints/tests the project (must pass before rendering) |
 | `snapshot` | saves still frames |
@@ -282,6 +290,7 @@ run `clips --generate-clips` — supply your own clips instead.
 | No MP4 anywhere | `render` is a separate step — run `render` (or `run`) |
 | "no audio found" | put the song at `assets/bgm.mp3` or pass `--audio PATH` |
 | Render is slow | normal: it draws every frame; a 3-minute song takes a few minutes |
+| A paid generation failed | failed tasks are not charged; retry with `--supersede-reason "why"` (recorded in the ledger) |
 | `module not found` in Python | you forgot to activate/use `.\.venv\Scripts\...`; re-run install step 2 |
 
 ---
@@ -289,7 +298,8 @@ run `clips --generate-clips` — supply your own clips instead.
 ## 11. Glossary
 
 - **Lyrics file** (`lyrics.md`) — your words, grouped by `[Section]` tags.
-- **Storyboard / blueprint** — the plan: shots, timing, on-screen text, camera.
+- **Storyboard** (`storyboard.md`) — the plan: settings, chapters, shots, lyrics, and the
+  prompts sent to the servers. It is the source of truth: edit it, then `storyboard run`.
 - **Shot** — one piece of the video (a few seconds) with its own look.
 - **Frame** — a sub-composition of the video that covers a slice of the timeline.
 - **Lipsync window** — a short planned clip where a singer is on camera.

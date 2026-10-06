@@ -39,10 +39,11 @@ def _rate(quality: str) -> float:
 def estimate(blueprint: Blueprint) -> Budgets:
     """Planned spend for a blueprint (Seedance + plates + song + buffer)."""
     quality = blueprint.budgets.seedance_quality or "720p"
+    buffer = float(blueprint.budgets.retry_buffer or RETRY_BUFFER)
     clip_seconds = sum(clip.duration for clip in blueprint.seedance)
     if not clip_seconds:  # lipsync windows imply clip seconds too
         clip_seconds = blueprint.sung_seconds
-    seedance_usd = round(clip_seconds * _rate(quality) * RETRY_BUFFER, 2)
+    seedance_usd = round(clip_seconds * _rate(quality) * buffer, 2)
     images_usd = round(len(blueprint.plates) * PLATE_USD, 2)
     suno_usd = SUNO_USD
     return Budgets(
@@ -53,6 +54,7 @@ def estimate(blueprint: Blueprint) -> Budgets:
         suno_usd=suno_usd,
         images_usd=images_usd,
         total_usd=round(seedance_usd + images_usd + suno_usd, 2),
+        retry_buffer=buffer,
     )
 
 

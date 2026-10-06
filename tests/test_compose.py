@@ -43,7 +43,6 @@ def test_compose_writes_a_valid_project(
         spec,
         storyboard,
         load_theme("broadside"),
-        doc,
         Transcript("fake", duration, []),
         fake_runner,
     )
@@ -95,7 +94,6 @@ def test_compose_writes_metadata(
         spec,
         storyboard,
         load_theme("broadside"),
-        doc,
         Transcript("fake", duration, []),
         fake_runner,
     )
@@ -104,7 +102,6 @@ def test_compose_writes_metadata(
         "meta.json",
         "hyperframes.json",
         "package.json",
-        "STORYBOARD.md",
         "build.json",
         "transcript.json",
     ]:
@@ -116,7 +113,6 @@ def test_compose_writes_scenes(
 ) -> None:
     from slopcore_factory.models import Frame, Scene, Storyboard
 
-    doc = parse_lyrics(lyrics_file)
     frame = Frame(
         id="f1",
         index=1,
@@ -143,7 +139,7 @@ def test_compose_writes_scenes(
         audio_path=fake_audio,
     )
     compose_project(
-        spec, storyboard, load_theme("broadside"), doc, Transcript("fake", 10.0, []), fake_runner
+        spec, storyboard, load_theme("broadside"), Transcript("fake", 10.0, []), fake_runner
     )
     frame_html = (tmp_path / "p" / "compositions" / "frames" / "f1.html").read_text(
         encoding="utf-8"
@@ -152,3 +148,70 @@ def test_compose_writes_scenes(
     assert "#f1-scene .bar" in frame_html  # the emitted tween target
     assert "scaleY" in frame_html
     assert (tmp_path / "p" / "scenes" / "registry.json").exists()
+
+
+def test_overlay_is_text_only(
+    tmp_path: Path, lyrics_file: Path, fake_audio: Path, fake_clip: Path, fake_runner
+) -> None:
+    from slopcore_factory.models import Frame, Group, Scene, Storyboard
+
+    frame = Frame(
+        id="f1",
+        index=1,
+        start=0.0,
+        duration=10.0,
+        groups=[
+            Group(
+                id="f1-g1",
+                kind="lyric_stack",
+                start=0.0,
+                duration=10.0,
+                cues=[Cue("hold on", 0.5, 2.0, "verse", 0, position="bottom")],
+                kicker="SH01",
+            )
+        ],
+        scenes=[
+            Scene(id="f1-scene", kind="bars", t0=0.0, t1=10.0),
+            Scene(id="f1-yolo", kind="yolo", t0=0.0, t1=10.0, params={"boxes": []}),
+        ],
+        background=fake_clip,
+        kicker="SH01",
+    )
+    storyboard = Storyboard(
+        composition_id="main",
+        title="t",
+        duration=10.0,
+        width=1280,
+        height=720,
+        fps=30,
+        frames=[frame],
+        accent_word="continue",
+    )
+    spec = FactorySpec(
+        song_id="t",
+        title="t",
+        lyrics_path=lyrics_file,
+        out_dir=tmp_path / "ov",
+        audio_path=fake_audio,
+    )
+    compose_project(
+        spec,
+        storyboard,
+        load_theme("broadside"),
+        Transcript("fake", 10.0, []),
+        fake_runner,
+        overlay=True,
+    )
+    frame_html = (tmp_path / "ov" / "compositions" / "frames" / "f1.html").read_text(
+        encoding="utf-8"
+    )
+    index_html = (tmp_path / "ov" / "index.html").read_text(encoding="utf-8")
+    # no scenes (bars/yolo), no media, no kicker, transparent background, no audio
+    assert 'class="scene scene-bars"' not in frame_html
+    assert 'class="scene scene-yolo"' not in frame_html
+    assert 'class="clip media"' not in frame_html
+    assert '<div class="kick">' not in frame_html
+    assert "background: transparent" in frame_html
+    assert "<audio" not in index_html
+    # the per-line position override still applies in an overlay
+    assert "pos-bottom" in frame_html

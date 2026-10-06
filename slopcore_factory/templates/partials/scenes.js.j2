@@ -5,5 +5,10 @@
         tl.fromTo("{{ event.target }}", { xPercent: 0 }, { xPercent: -50, duration: {{ event.duration }}, ease: "none" }, {{ event.at }});
 {% elif event.kind == "scene_scan" %}
         tl.fromTo("{{ event.target }}", { backgroundPositionY: "0px" }, { backgroundPositionY: "220px", duration: 7, repeat: -1, ease: "none" }, {{ event.at }});
+{% elif event.kind == "scene_blocks" %}
+        tl.fromTo("{{ event.target }}", { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.6, ease: "power1.out", stagger: { each: 1.1, from: "start" } }, {{ event.at }});
+{% elif event.kind == "scene_yolo_box" %}
+        tl.fromTo("{{ event.target }}", { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.22, ease: "power1.out" }, {{ event.at }});
+        tl.set("{{ event.target }}", { autoAlpha: 0 }, {{ event.hide_at }});
 {% endif %}
 {% endfor %}{% endfor %}

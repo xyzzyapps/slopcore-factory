@@ -38,6 +38,35 @@ def test_scan_and_custom() -> None:
     assert scene_data(custom, _frame())["markup"] == "<b>hi</b>"
 
 
+def test_blocks_scene_is_seeded_and_deterministic() -> None:
+    scene = Scene(id="f1-scene", kind="blocks", t0=12.0, t1=18.0, params={"count": 8})
+    data = scene_data(scene, _frame(), "continue")
+    assert data["kind"] == "blocks"
+    assert len(data["rects"]) == 8
+    assert data["rects"][0]["label"].startswith("AI ")
+    assert data["events"][0]["kind"] == "scene_blocks"
+    assert data["events"][0]["at"] == 2.0
+    assert scene_data(scene, _frame(), "continue")["rects"] == data["rects"]
+    assert is_builtin("blocks")
+
+
+def test_yolo_scene_boxes_are_timed() -> None:
+    scene = Scene(
+        id="f1-yolo",
+        kind="yolo",
+        t0=10.0,
+        t1=30.0,
+        params={"boxes": [{"t": 2.0, "x": 10, "y": 20, "w": 30, "h": 40, "label": "person 0.90"}]},
+    )
+    data = scene_data(scene, _frame(), "continue")
+    assert data["boxes"][0]["id"] == "f1-yolo-b1"
+    event = data["events"][0]
+    assert event["kind"] == "scene_yolo_box"
+    assert event["at"] == 2.0
+    assert event["hide_at"] == 3.7
+    assert is_builtin("yolo")
+
+
 def test_registry_lists_kinds() -> None:
     frame = _frame()
     frame.scenes = [Scene(id="s", kind="bars"), Scene(id="t", kind="scan")]

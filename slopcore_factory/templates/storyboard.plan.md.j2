@@ -1,0 +1,85 @@
+# {{ title }}
+
+> slopcore-factory storyboard. This file is the source of truth for the video:
+> edit it here, then run `storyboard run` in the REPL. All times are seconds from
+> the top of the song.
+
+## settings
+
+| key | value |
+| --- | --- |
+{% for row in settings %}
+| {{ row.key }} | {{ row.value }} |
+{% endfor %}
+
+## character
+
+| field | value |
+| --- | --- |
+{% for row in character %}
+| {{ row.key }} | {{ row.value }} |
+{% endfor %}
+
+## chapters
+
+| id | name | start | end | grade | accent | screen | set |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+{% for c in chapters %}
+| {{ c.id }} | {{ c.name }} | {{ c.t0 }} | {{ c.t1 }} | {{ c.grade }} | {{ c.accent }} | {{ c.screen }} | {{ c.set }} |
+{% endfor %}
+
+## shots
+
+| shot | start | end | chapter | framing | tier | clip | treatment | scene | media |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+{% for s in shots %}
+| {{ s.id }} | {{ s.t0 }} | {{ s.t1 }} | {{ s.chapter }} | {{ s.framing }} | {{ s.tier }} | {{ s.clip }} | {{ s.treatment }} | {{ s.scene }} | {{ s.media }} |
+{% endfor %}
+
+## lyrics
+
+| line | start | text | mode | position | offset |
+| --- | --- | --- | --- | --- | --- |
+{% for l in lyrics %}
+| {{ l.line }} | {{ l.start }} | {{ l.text }} | {{ l.mode }} | {{ l.position }} | {{ l.offset }} |
+{% endfor %}
+
+## prompts
+
+### song
+
+```text
+{{ song_style }}
+```
+
+### clips
+
+| clip | sing | duration | reference | prompt |
+| --- | --- | --- | --- | --- |
+{% for c in clips %}
+| {{ c.clip }} | {{ c.sing }} | {{ c.duration }} | {{ c.reference }} | {{ c.prompt }} |
+{% endfor %}
+
+## lipsync
+
+| clip | start | duration | words | framing |
+| --- | --- | --- | --- | --- |
+{% for w in lipsync %}
+| {{ w.clip }} | {{ w.start }} | {{ w.duration }} | {{ w.words }} | {{ w.framing }} |
+{% endfor %}
+
+## animation
+
+| id | chapter | start | end | module | notes |
+| --- | --- | --- | --- | --- | --- |
+{% for a in animation %}
+| {{ a.id }} | {{ a.chapter }} | {{ a.t0 }} | {{ a.t1 }} | {{ a.module }} | {{ a.notes }} |
+{% endfor %}
+
+## plates
+
+| plate | set | aspect | depth | prompt |
+| --- | --- | --- | --- | --- |
+{% for p in plates %}
+| {{ p.plate }} | {{ p.set }} | {{ p.aspect }} | {{ p.depth }} | {{ p.prompt }} |
+{% endfor %}

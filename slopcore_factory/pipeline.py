@@ -43,6 +43,18 @@ log = get_logger("pipeline")
 STAGES = ["song", "align", "beats", "media", "plan", "build", "check", "snapshot", "render"]
 
 
+def unique_path(path: Path) -> Path:
+    """Never overwrite an output: ``x.mp4``, ``x-2.mp4``, ``x-3.mp4``, ..."""
+    path = Path(path)
+    if not path.exists():
+        return path
+    for index in range(2, 1000):
+        candidate = path.with_name(f"{path.stem}-{index}{path.suffix}")
+        if not candidate.exists():
+            return candidate
+    raise SlopcoreFactoryError(f"cannot find a free name for {path}")
+
+
 class Pipeline:
     """Drives one song from lyrics to a rendered MP4."""
 
@@ -231,7 +243,7 @@ class Pipeline:
             # one clip path only: the blueprint's Seedance entries, via clipgen
             from .blueprint import load_blueprint, save_blueprint
             from .budget import guard
-            from .clipgen import generate_seedance_clips
+            from .clipgen import generate_seedance_clips, reference_images
 
             blueprint_path = self.work_dir / "blueprint.yaml"
             if not blueprint_path.exists():
@@ -244,6 +256,7 @@ class Pipeline:
                 "clip_generator",
                 reference_audio=self.spec.audio_path,
                 quality=str(self.spec.extra.get("clip_quality", "720p")),
+                reference_images=reference_images(Path(self.spec.lyrics_path).parent),
             )
             paths = generate_seedance_clips(
                 blueprint, provider, Path(self.spec.out_dir) / "assets" / "clips"
@@ -267,21 +280,28 @@ class Pipeline:
 
     def _do_plan(self, force: bool) -> StageResult:
         lyrics = self._lyrics_doc()
-        cues = self._ensure_cues()
         duration = self._duration()
 
-        blueprint_path = self.work_dir / "blueprint.yaml"
-        source = "planner"
-        if blueprint_path.exists():
-            from .blueprint import load_blueprint
-            from .compiler import blueprint_to_storyboard
+        from .storyboard_md import load_plan
 
-            blueprint = load_blueprint(blueprint_path)
+        song_dir = Path(self.spec.lyrics_path).parent
+        plan = load_plan(song_dir, self.work_dir, lyrics)
+        source = "planner"
+        if plan is not None:
+            from .compiler import blueprint_to_storyboard
+            from .detect import apply as apply_detections
+            from .treat import apply as apply_treatments
+
+            blueprint, plan_cues = plan
+            cues = plan_cues if plan_cues is not None else self._ensure_cues()
+            apply_treatments(blueprint, self.work_dir / "treated", self._runner())
+            apply_detections(blueprint, self.work_dir / "detections", self._runner())
             self.storyboard = blueprint_to_storyboard(
                 blueprint, cues, lyrics, fallback_backgrounds=self.backgrounds
             )
-            source = "blueprint"
+            source = "storyboard" if plan_cues is not None else "blueprint"
         else:
+            cues = self._ensure_cues()
             self.storyboard = plan_storyboard(
                 self.spec,
                 lyrics,
@@ -309,7 +329,6 @@ class Pipeline:
             self.spec,
             storyboard,
             theme,
-            self._lyrics_doc(),
             self._ensure_transcript(),
             self._runner(),
         )
@@ -345,7 +364,9 @@ class Pipeline:
         renderer = self.services.get("renderer")
         # name the file after the project folder (unique per run), and make it
         # absolute: the renderer runs with cwd=project
-        out = (self.spec.out_dir.parent / "renders" / f"{self.spec.out_dir.name}.mp4").resolve()
+        out = unique_path(
+            (self.spec.out_dir.parent / "renders" / f"{self.spec.out_dir.name}.mp4").resolve()
+        )
         path = renderer.render(Path(self.spec.out_dir), out, self.spec.fps)
         return StageResult(
             "render",

@@ -28,8 +28,9 @@ from .errors import ConfigError
 
 BLUEPRINT_VERSION = 2
 MOTION_TIERS = {"code", "plate25d", "seedance"}
+TREATMENTS = {"loop", "slow", "pingpong", "hold", "stutter"}
 TYPE_MODES = {"subtitle", "coverline", "masthead", "mass", "plate"}
-POSITION_MODES = {"left", "right", "center", "lower", "upper"}
+POSITION_MODES = {"left", "right", "center", "lower", "upper", "bottom"}
 
 
 @dataclass
@@ -64,6 +65,7 @@ class ShotType:
     mode: str = "subtitle"
     text: str = ""
     position: str = ""
+    offset: float = 0.0  # seconds to shift this line later (negative = earlier)
 
 
 @dataclass
@@ -99,6 +101,10 @@ class Shot:
     motion_tier: str = "code"  # code | plate25d | seedance
     lead_on_screen: bool = False
     seedance_clip: str | None = None
+    media: str = ""  # explicit background override (image or treated clip)
+    treatment: str = "loop"  # loop | slow | pingpong | hold | stutter
+    treatment_value: float = 0.0  # slow factor / trim seconds (0 = auto)
+    detections: list[dict] = field(default_factory=list)  # YOLO boxes, shot-local times
     lines: list[int] = field(default_factory=list)
     type: list[ShotType] = field(default_factory=list)
     chrome: str = ""
@@ -129,6 +135,7 @@ class SeedanceClip:
     sing: bool = False
     cover_of: str = ""
     path: str = ""  # local file once generated (or a dry-run placeholder)
+    use_reference: bool = True  # send the character reference images with this clip
 
 
 @dataclass
@@ -183,6 +190,7 @@ class Budgets:
     suno_usd: float = 0.0
     images_usd: float = 0.0
     total_usd: float = 0.0
+    retry_buffer: float = 1.35  # planning multiplier; 1.0 = one-shot, no retry budget
 
 
 @dataclass
@@ -379,6 +387,8 @@ def validate_blueprint(blueprint: Blueprint, tolerance: float = 0.02) -> list[st
             problems.append(f"{shot.id}: unknown motion_tier {shot.motion_tier!r}")
         if shot.motion_tier == "seedance" and shot.seedance_clip not in clip_ids:
             problems.append(f"{shot.id}: seedance shot without a known clip")
+        if shot.treatment not in TREATMENTS:
+            problems.append(f"{shot.id}: unknown treatment {shot.treatment!r}")
 
     # type modes + positions
     for shot in blueprint.shots:

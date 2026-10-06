@@ -59,6 +59,8 @@ HELP = {
     "avsync": "measure clip drift against the reference vocal",
     "covers": "add cover windows for clips whose sync drifted",
     "review": "snapshot the built project and write a review report",
+    "overlay": "render the lyrics-only layer as a transparent MOV (for an NLE)",
+    "storyboard": "print the plan, or write storyboard.md beside the lyrics",
     "repl": "interactive shell over every factory capability",
 }
 
@@ -85,6 +87,8 @@ def build_parser() -> argparse.ArgumentParser:
         "avsync",
         "covers",
         "review",
+        "overlay",
+        "storyboard",
         "repl",
     ]:
         sp = sub.add_parser(name, help=HELP[name])
@@ -111,6 +115,14 @@ def build_parser() -> argparse.ArgumentParser:
             sp.add_argument("--quality", default="720p")
         if name == "avsync":
             sp.add_argument("--threshold", type=float, default=0.6)
+        if name == "storyboard":
+            sp.add_argument(
+                "mode",
+                nargs="?",
+                choices=["print", "write", "run"],
+                default="print",
+                help="print the plan, write it beside the lyrics, or execute it",
+            )
     return parser
 
 
@@ -147,6 +159,11 @@ def _add_common(sp: argparse.ArgumentParser) -> None:
     sp.add_argument(
         "--song-command", default=None, help="wrapper command for the yue / ace_step backends"
     )
+    sp.add_argument(
+        "--supersede-reason",
+        default=None,
+        help="record why a previously failed paid attempt may be retried",
+    )
     sp.add_argument("--force", action="store_true", help="ignore stage caches")
 
 
@@ -179,6 +196,10 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_covers(args)
     if args.command == "review":
         return _cmd_review(args)
+    if args.command == "overlay":
+        return _cmd_overlay(args)
+    if args.command == "storyboard":
+        return _cmd_storyboard(args)
 
     spec = _make_spec(args)
     work = _work_dir(spec)
@@ -210,6 +231,7 @@ def _make_spec(args: argparse.Namespace):
             "brief": getattr(args, "brief", None),
             "song_backend": getattr(args, "song_backend", None),
             "song_command": getattr(args, "song_command", None),
+            "supersede_reason": getattr(args, "supersede_reason", None),
         }.items()
         if value is not None
     }
@@ -394,6 +416,36 @@ def _cmd_review(args: argparse.Namespace) -> int:
     times, paths, report = review(spec, work, services)
     print(f"review: {len(paths)} snapshot(s) at {times}")
     print(f"report: {report}")
+    return 0
+
+
+def _cmd_overlay(args: argparse.Namespace) -> int:
+    from .workflows import render_overlay
+
+    spec = _make_spec(args)
+    work = _work_dir(spec)
+    setup_logging(work / "logs")
+    path = render_overlay(spec, work, _services(spec))
+    print(f"overlay: {path}")
+    return 0
+
+
+def _cmd_storyboard(args: argparse.Namespace) -> int:
+    from .storyboard_md import apply_settings, plan_path, plan_text, settings_of, write_plan
+
+    spec = _make_spec(args)
+    work = _work_dir(spec)
+    setup_logging(work / "logs")
+    if args.mode == "write":
+        print(f"storyboard: {write_plan(spec, work)}")
+        return 0
+    if args.mode == "run":
+        plan = plan_path(Path(spec.lyrics_path).parent)
+        if plan.exists():
+            apply_settings(spec, settings_of(plan.read_text(encoding="utf-8")))
+        results = Pipeline(spec, _services(spec), work).run(until="render", skip={"snapshot"})
+        return 0 if all(result.status != "FAILED" for result in results) else 1
+    print(plan_text(spec, work))
     return 0
 
 

@@ -17,11 +17,49 @@ from .vendor import add_slopcore_to_path
 
 log = get_logger("clipgen")
 
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
+MAX_REFERENCE_IMAGES = 6
+
 
 class ClipGenerator(Protocol):
     """Writes one clip for a Seedance entry and returns its local path."""
 
     def generate(self, entry: SeedanceClip, out_dir: Path) -> Path | None: ...
+
+
+def reference_images(song_dir: Path) -> list[Path]:
+    """Up to :data:`MAX_REFERENCE_IMAGES` images from ``<song>/assets/ref``.
+
+    Sorted by filename so the ``@Image1``/``@Image2``/``@Image3`` order is stable
+    across runs. Returns ``[]`` when the folder does not exist.
+    """
+    ref_dir = Path(song_dir) / "assets" / "ref"
+    if not ref_dir.is_dir():
+        return []
+    found = sorted(p for p in ref_dir.iterdir() if p.suffix.lower() in IMAGE_SUFFIXES)
+    return found[:MAX_REFERENCE_IMAGES]
+
+
+def clip_payload(
+    entry: SeedanceClip,
+    *,
+    model: str,
+    quality: str,
+    aspect: str,
+    image_urls: list[str] | None = None,
+) -> dict:
+    """The Seedance request body for one clip (pure, so tests need no API)."""
+    payload: dict = {
+        "model": model,
+        "prompt": entry.prompt,
+        "duration": int(round(entry.duration)),
+        "quality": quality,
+        "aspect_ratio": aspect,
+        "generate_audio": entry.sing,
+    }
+    if image_urls and entry.use_reference:
+        payload["image_urls"] = list(image_urls)[:MAX_REFERENCE_IMAGES]
+    return payload
 
 
 def generate_seedance_clips(
@@ -30,11 +68,19 @@ def generate_seedance_clips(
     """Generate every clip in the blueprint and record its path on the entry.
 
     A provider may return ``None`` (e.g. supplied mode with no matching file);
-    those entries are simply left without a local path.
+    those entries are simply left without a local path. A clip whose output file
+    already exists is reused, so a paid run can resume after a failure without
+    re-submitting the one-shot ledger entries.
     """
     out_dir = Path(out_dir)
     paths: dict[str, Path] = {}
     for entry in blueprint.seedance:
+        existing = out_dir / f"{entry.clip}.mp4"
+        if existing.exists():
+            entry.path = existing.as_posix()
+            paths[entry.clip] = existing
+            log.info("reusing %s: %s", entry.clip, existing)
+            continue
         result = provider.generate(entry, out_dir)
         if result is None:
             continue
@@ -71,6 +117,8 @@ class EvoLinkClipProvider:
 
     Audio-conditioned when the entry is a singing window: the exact slice of the
     song is cut in a word gap and hosted so the model can lip-sync to it.
+    Reference images (up to :data:`MAX_REFERENCE_IMAGES`) are uploaded once and
+    attached to every clip, so the lead stays recognisable across shots.
     """
 
     def __init__(
@@ -78,10 +126,26 @@ class EvoLinkClipProvider:
         reference_audio: Path | None = None,
         quality: str = "720p",
         aspect: str = "16:9",
+        reference_images: list[Path] | None = None,
     ) -> None:
         self.reference_audio = Path(reference_audio) if reference_audio else None
         self.quality = quality
         self.aspect = aspect
+        self.reference_images = [Path(p) for p in (reference_images or [])][:MAX_REFERENCE_IMAGES]
+        self._image_urls: list[str] | None = None
+
+    def _upload_references(self, client) -> list[str]:  # pragma: no cover - paid
+        """Upload the reference images once per provider instance."""
+        if self._image_urls is not None:
+            return self._image_urls
+        urls: list[str] = []
+        for ref in self.reference_images:
+            if not ref.exists():
+                log.warning("reference image missing: %s", ref)
+                continue
+            urls.append(client.upload_image(ref))
+        self._image_urls = urls
+        return urls
 
     def generate(self, entry: SeedanceClip, out_dir: Path) -> Path:  # pragma: no cover - paid
         add_slopcore_to_path()
@@ -101,14 +165,14 @@ class EvoLinkClipProvider:
         settings = load_settings()
         client = ev.EvoLinkClient(settings.api_key, ledger=Ledger(data_dir / "ledger.jsonl"))
 
-        payload: dict = {
-            "model": settings.seedance_model,
-            "prompt": entry.prompt,
-            "duration": int(round(entry.duration)),
-            "quality": self.quality,
-            "aspect_ratio": self.aspect,
-            "generate_audio": entry.sing,
-        }
+        image_urls = self._upload_references(client) if entry.use_reference else []
+        payload = clip_payload(
+            entry,
+            model=settings.seedance_model,
+            quality=self.quality,
+            aspect=self.aspect,
+            image_urls=image_urls,
+        )
         if entry.sing and self.reference_audio and self.reference_audio.exists():
             slice_path = data_dir / "clips" / "audio" / f"{entry.clip}.wav"
             media.slice_audio(

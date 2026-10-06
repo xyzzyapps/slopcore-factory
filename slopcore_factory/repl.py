@@ -33,8 +33,8 @@ class Repl(cmd.Cmd):
 
     intro = (
         "slopcore-factory REPL. Type 'help' for commands, 'quit' to leave.\n"
-        "Commands: lyrics song takes blueprint analyze lipsync clips avsync covers review "
-        "dryrun quote compile build check snapshot render status"
+        "Commands: lyrics song takes storyboard treat blueprint analyze lipsync clips avsync "
+        "covers review dryrun quote compile build check snapshot render status"
     )
     prompt = "slopcore> "
 
@@ -77,11 +77,33 @@ class Repl(cmd.Cmd):
 
     def _load_blueprint(self) -> Blueprint:
         if self.blueprint is None:
-            if self._blueprint_path().exists():
+            from .storyboard_md import load_plan
+
+            plan = load_plan(Path(self.spec.lyrics_path).parent, self.work, self._lyrics_doc())
+            if plan is not None:
+                self.blueprint = plan[0]
+            elif self._blueprint_path().exists():
                 self.blueprint = load_blueprint(self._blueprint_path())
             else:
                 raise SlopcoreFactoryError("no blueprint yet; run 'blueprint gen'")
         return self.blueprint
+
+    def _save_plan(self) -> None:
+        """Write the plan back: ``storyboard.md`` when it exists, else the blueprint."""
+        from .storyboard_md import load_plan, plan_path, render, song_style_for
+
+        assert self.blueprint is not None
+        song_dir = Path(self.spec.lyrics_path).parent
+        path = plan_path(song_dir)
+        plan = load_plan(song_dir, self.work, self._lyrics_doc())
+        cues = plan[1] if plan else None
+        if path.exists():
+            path.write_text(
+                render(self.blueprint, cues, song_style=song_style_for(self.spec)),
+                encoding="utf-8",
+            )
+        else:
+            save_blueprint(self.blueprint, self._blueprint_path())
 
     def _pipeline(self) -> Pipeline:
         return Pipeline(self.spec, self.services, self.work)
@@ -123,6 +145,92 @@ class Repl(cmd.Cmd):
         print(f"chosen take: {data.get('chosen')}")
         for take in data.get("takes", []):
             print(f"  {take['take']}: {take['path']}")
+
+    def do_storyboard(self, arg: str) -> None:
+        """storyboard [print|write|run|shot <id>]   show, write, inspect or execute."""
+        from .storyboard_md import apply_settings, plan_path, plan_text, settings_of
+
+        parts = (arg or "").split()
+        mode = parts[0] if parts else "print"
+        path = plan_path(Path(self.spec.lyrics_path).parent)
+        if mode == "run":
+            if path.exists():
+                apply_settings(self.spec, settings_of(path.read_text(encoding="utf-8")))
+            self._run("render")
+            return
+        if mode == "shot":
+            self._show_shot(parts[1] if len(parts) > 1 else "")
+            return
+        if mode == "write":
+            path.write_text(plan_text(self.spec, self.work), encoding="utf-8")
+            print(f"storyboard: {path}")
+            return
+        print(plan_text(self.spec, self.work))
+
+    def _show_shot(self, shot_id: str) -> None:
+        from .storyboard_md import load_plan
+
+        plan = load_plan(Path(self.spec.lyrics_path).parent, self.work, self._lyrics_doc())
+        if plan is None:
+            print("no plan yet (run 'storyboard write')")
+            return
+        blueprint, _cues = plan
+        shot = next((s for s in blueprint.shots if s.id == shot_id), None)
+        if shot is None:
+            print(f"no such shot: {shot_id}")
+            return
+        clip_id = shot.seedance_clip or "-"
+        print(f"{shot.id}  {shot.t0:.3f}-{shot.t1:.3f}  {shot.motion_tier}  clip={clip_id}")
+        print(f"  treatment {shot.treatment} value {shot.treatment_value:g}")
+        for entry in sorted(shot.type, key=lambda e: e.line):
+            print(
+                f"  line {entry.line}: {entry.text}  "
+                f"[{entry.mode}/{entry.position} +{entry.offset:g}]"
+            )
+        clip = next((c for c in blueprint.seedance if c.clip == shot.seedance_clip), None)
+        if clip and clip.prompt:
+            print(f"  prompt: {clip.prompt}")
+
+    def do_treat(self, arg: str) -> None:
+        """treat [list | <shot> [treatment [value]]]   ffmpeg media treatments."""
+        from .blueprint import TREATMENTS
+        from .treat import apply as apply_treatments
+
+        blueprint = self._load_blueprint()
+        parts = (arg or "").split()
+        if parts and parts[0] == "list":
+            for shot in blueprint.shots:
+                if shot.treatment and shot.treatment != "loop":
+                    print(f"  {shot.id}: {shot.treatment} value {shot.treatment_value:g}")
+            return
+        only = None
+        if parts:
+            only = parts[0]
+            shot = next((s for s in blueprint.shots if s.id == only), None)
+            if shot is None:
+                print(f"no such shot: {only}")
+                return
+            if len(parts) >= 2:
+                treatment = parts[1]
+                if treatment not in TREATMENTS:
+                    print(
+                        f"unknown treatment: {treatment} (one of {', '.join(sorted(TREATMENTS))})"
+                    )
+                    return
+                shot.treatment = treatment
+                shot.media = ""  # the old treated file no longer applies
+                if len(parts) >= 3:
+                    shot.treatment_value = float(parts[2])
+                self._save_plan()
+                print(f"{shot.id}: {treatment} value {shot.treatment_value:g}")
+        done = apply_treatments(
+            blueprint, self.work / "treated", self.services.get("runner"), only=only
+        )
+        if not done:
+            print("nothing treated (treatment is 'loop', or there is no clip)")
+            return
+        for shot_id, path in done.items():
+            print(f"  {shot_id}: {path}")
 
     def do_blueprint(self, arg: str) -> None:
         """blueprint [gen|llm|show|path]   generate, show, or locate the blueprint."""

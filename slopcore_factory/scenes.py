@@ -12,6 +12,7 @@ markup and any CSS/JS, and is listed in the scene registry.
 
 from __future__ import annotations
 
+import random
 from pathlib import Path
 
 from .logging_setup import get_logger
@@ -19,7 +20,7 @@ from .models import Frame, Scene
 
 log = get_logger("scenes")
 
-BUILTINS = {"bars", "marquee", "scan"}
+BUILTINS = {"bars", "marquee", "scan", "blocks", "yolo"}
 
 
 def is_builtin(kind: str) -> bool:
@@ -48,6 +49,36 @@ def scene_data(scene: Scene, frame: Frame, accent_word: str | None = None) -> di
         )
     elif scene.kind == "scan":
         data["events"].append({"kind": "scene_scan", "target": f"#{scene.id}", "at": start})
+    elif scene.kind == "blocks":
+        # sparse detection-style boxes: thin white borders, YOLO-ish
+        rng = random.Random(scene.id)
+        count = int(scene.params.get("count", 4))
+        data["rects"] = [
+            {
+                "left": round(rng.uniform(6, 62), 2),
+                "top": round(rng.uniform(8, 52), 2),
+                "w": round(rng.uniform(12, 30), 2),
+                "h": round(rng.uniform(18, 38), 2),
+                "label": f"AI {rng.uniform(0.71, 0.98):.2f}",
+            }
+            for _ in range(count)
+        ]
+        data["events"].append({"kind": "scene_blocks", "target": f"#{scene.id} .box", "at": start})
+    elif scene.kind == "yolo":
+        boxes = scene.params.get("boxes") or []
+        data["boxes"] = []
+        for index, box in enumerate(boxes, start=1):
+            at = round(max(start, min(end, start + float(box.get("t", 0.0)))), 3)
+            hide = round(min(end, at + 1.7), 3)
+            data["boxes"].append({"id": f"{scene.id}-b{index}", **box})
+            data["events"].append(
+                {
+                    "kind": "scene_yolo_box",
+                    "target": f"#{scene.id}-b{index}",
+                    "at": at,
+                    "hide_at": hide,
+                }
+            )
     elif scene.kind == "custom":
         data["markup"] = scene.markup
     return data

@@ -21,4 +21,5 @@ vendor/
 *.mp3
 *.mp4
 *.wav
+*.pt
 !tests/fixtures/**

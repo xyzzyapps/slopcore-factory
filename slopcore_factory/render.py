@@ -52,22 +52,29 @@ class HyperframesRenderer:
         snap_dir = Path(project) / "snapshots"
         return sorted(snap_dir.glob("*.png")) if snap_dir.is_dir() else []
 
-    def render(self, project: Path, out: Path, fps: int) -> Path:
+    def render(
+        self, project: Path, out: Path, fps: int, fmt: str = "mp4", workers: int | None = None
+    ) -> Path:
         out = Path(out)
         out.parent.mkdir(parents=True, exist_ok=True)
+        args = [
+            "render",
+            ".",
+            "--skill",
+            self.skill,
+            "-q",
+            "looks",
+            "--format",
+            fmt,
+            "-o",
+            str(out),
+            "--fps",
+            str(fps),
+        ]
+        if workers is not None:
+            args += ["--workers", str(workers)]
         result = self.runner.run(
-            self._cmd(
-                "render",
-                ".",
-                "--skill",
-                self.skill,
-                "-q",
-                "looks",
-                "-o",
-                str(out),
-                "--fps",
-                str(fps),
-            ),
+            self._cmd(*args),
             cwd=Path(project),
             timeout=None,  # renders can be long; no timeout
         )

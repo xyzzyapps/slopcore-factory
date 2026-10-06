@@ -124,7 +124,7 @@ def last_gap_before(t: float, gaps: list[Gap]) -> Gap | None:
 # ---------------------------------------------------------------------------
 
 
-def separate_vocals(audio: Path, out_dir: Path, runner=None) -> Path:
+def separate_vocals(audio: Path, out_dir: Path) -> Path:
     """Separate the vocal stem with demucs when it is installed.
 
     Returns the input unchanged when demucs is unavailable, so the pipeline can

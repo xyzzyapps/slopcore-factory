@@ -41,10 +41,9 @@ def test_extract_yaml_tolerates_fences() -> None:
 
 
 def test_build_prompt_contains_lyrics_and_schema(tmp_path: Path, lyrics_file: Path) -> None:
-    spec = build_spec(lyrics_file, tmp_path / "project")
     doc = parse_lyrics(lyrics_file)
     cues = _cues(doc)
-    prompt = build_prompt(spec, doc, cues, cues[-1].end + 2.0, "a brief")
+    prompt = build_prompt(doc, cues, cues[-1].end + 2.0, "a brief")
     assert "TEST SONG" in prompt
     assert "shots:" in prompt
     assert "lipsync:" in prompt

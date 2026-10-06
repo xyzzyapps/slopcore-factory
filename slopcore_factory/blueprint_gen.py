@@ -202,9 +202,7 @@ meta: {}
 """
 
 
-def build_prompt(
-    spec: FactorySpec, lyrics: LyricsDoc, cues: list[Cue], duration: float, brief: str
-) -> str:
+def build_prompt(lyrics: LyricsDoc, cues: list[Cue], duration: float, brief: str) -> str:
     """The single-shot prompt: brief + lyrics + word timings + the schema."""
     lyric_block = lyrics.text
     timing = [
@@ -250,7 +248,7 @@ def generate_with_llm(
     brief: str = "",
 ) -> Blueprint:
     """Ask the model for a blueprint; validate and retry once on failure."""
-    prompt = build_prompt(spec, lyrics, cues, duration, brief)
+    prompt = build_prompt(lyrics, cues, duration, brief)
     last_problems: list[str] = []
     for attempt in range(2):
         message = prompt

@@ -98,6 +98,7 @@ class Cue:
     section: str
     index: int  # global line index, matches LyricLine.index
     words: list[Word] = field(default_factory=list)
+    position: str = ""  # per-shot placement override (see blueprint POSITION_MODES)
 
     @property
     def duration(self) -> float:
@@ -134,10 +135,8 @@ class Theme:
 
     name: str
     bg: str
-    ink: str
     accent: str
     cream: str
-    muted: str
     font_display: str
     font_body: str
     font_mono: str

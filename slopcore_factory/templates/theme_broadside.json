@@ -1,10 +1,8 @@
 {
   "name": "broadside",
   "bg": "#111111",
-  "ink": "#1A1A18",
   "accent": "#E85D26",
   "cream": "#F0ECE5",
-  "muted": "#888880",
   "font_display": "Barlow",
   "font_body": "Barlow",
   "font_mono": "IBM Plex Mono",

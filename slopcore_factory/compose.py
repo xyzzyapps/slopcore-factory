@@ -11,7 +11,6 @@ Templates live in ``slopcore_factory/templates``:
 * ``partials/media.html.j2`` — the looping background tiles
 * ``partials/group.html.j2`` — the lyric / held-message groups
 * ``partials/timeline.js.j2``— the GSAP timeline
-* ``storyboard.md.j2``       — the human-readable storyboard output
 """
 
 from __future__ import annotations
@@ -30,7 +29,7 @@ from .errors import ComposeError
 from .interfaces import CommandRunner
 from .logging_setup import get_logger
 from .media import probe_duration
-from .models import FactorySpec, Frame, Group, LyricsDoc, Storyboard, Theme, Transcript
+from .models import FactorySpec, Frame, Group, Storyboard, Theme, Transcript
 from .theme import font_css, resolve_font_path
 
 log = get_logger("compose")
@@ -40,6 +39,8 @@ TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 LOOP_OFFSETS = (0.0, 1.75, 3.5, 5.25)
 DEFAULT_HOOK_SECTIONS = {"chorus"}
 MAX_HOOK_WORDS = 4
+# Positions that render with the default line/word placement (no CSS override).
+DEFAULT_POSITIONS = {"", "lower"}
 
 
 @dataclass
@@ -48,7 +49,6 @@ class MediaClip:
 
     source: Path
     rel: str
-    name: str
     duration: float
     is_image: bool
 
@@ -68,12 +68,16 @@ def compose_project(
     spec: FactorySpec,
     storyboard: Storyboard,
     theme: Theme,
-    lyrics: LyricsDoc,
     transcript: Transcript,
     runner: CommandRunner,
     project_dir: Path | None = None,
+    overlay: bool = False,
 ) -> dict:
-    """Write the whole project and return a manifest dict."""
+    """Write the whole project and return a manifest dict.
+
+    ``overlay`` writes a lyrics-only, transparent variant (no media, scrim or
+    grain) so it can be rendered as an alpha layer for an NLE.
+    """
     project = Path(project_dir or spec.out_dir)
     frames_dir = project / "compositions" / "frames"
     assets = project / "assets"
@@ -83,13 +87,12 @@ def compose_project(
         directory.mkdir(parents=True, exist_ok=True)
 
     _copy_fonts(theme, fonts_dir)
-    audio_rel = _copy_audio(spec, assets)
-    clip_map = _copy_clips(storyboard, clips_dir, runner)
+    audio_rel = "" if overlay else _copy_audio(spec, assets)
+    clip_map: dict[Path, MediaClip] = {} if overlay else _copy_clips(storyboard, clips_dir, runner)
 
     env = build_environment()
     frame_template = env.get_template("frame.html.j2")
     index_template = env.get_template("index.html.j2")
-    storyboard_template = env.get_template("storyboard.md.j2")
 
     hook_sections = {s.lower() for s in spec.extra.get("hook_sections", DEFAULT_HOOK_SECTIONS)}
     accent = storyboard.accent_word
@@ -99,14 +102,16 @@ def compose_project(
 
     frame_files: list[Path] = []
     for frame in storyboard.frames:
+        # An overlay is text only: no media, no scenes, no scrim or grain.
         scene_ctx: list[dict] = []
-        for scene in frame.scenes:
-            if scene.kind == "custom":
-                scene.markup = scenes.load_custom_markup(scene, song_dir)
-                source = song_dir / scene.module if scene.module else None
-                if source and source.exists():
-                    shutil.copy2(source, scenes_out / source.name)
-            scene_ctx.append(scenes.scene_data(scene, frame, accent))
+        if not overlay:
+            for scene in frame.scenes:
+                if scene.kind == "custom":
+                    scene.markup = scenes.load_custom_markup(scene, song_dir)
+                    source = song_dir / scene.module if scene.module else None
+                    if source and source.exists():
+                        shutil.copy2(source, scenes_out / source.name)
+                scene_ctx.append(scenes.scene_data(scene, frame, accent))
         rendered = frame_template.render(
             composition_id=frame.id,
             duration=f"{frame.duration:.3f}",
@@ -114,7 +119,8 @@ def compose_project(
             height=storyboard.height,
             theme=theme,
             fonts_css=font_css(theme),
-            media=_media_data(frame, clip_map),
+            media=[] if overlay else _media_data(frame, clip_map),
+            overlay=overlay,
             scenes=scene_ctx,
             groups=[_group_data(group, accent, hook_sections) for group in frame.groups],
             events=_timeline_data(frame),
@@ -131,6 +137,7 @@ def compose_project(
             width=storyboard.width,
             height=storyboard.height,
             duration=f"{storyboard.duration:.3f}",
+            overlay=overlay,
             audio_rel=audio_rel,
             frames=[
                 {
@@ -152,7 +159,6 @@ def compose_project(
         transcript,
         audio_rel,
         clip_map,
-        storyboard_template.render(**_storyboard_data(storyboard)),
     )
     log.info("composed project: %s (%d frames)", project, len(storyboard.frames))
 
@@ -207,10 +213,13 @@ def _group_data(group: Group, accent: str | None, hook_sections: set[str]) -> di
             is_hook = (
                 cue.section.lower() in hook_sections and len(cue.text.split()) <= MAX_HOOK_WORDS
             )
+            css_class = "word" if is_hook else "line"
+            if cue.position and cue.position not in DEFAULT_POSITIONS:
+                css_class = f"{css_class} pos-{cue.position}"
             elements.append(
                 {
                     "id": f"{group.id}-l{i}",
-                    "css_class": "word" if is_hook else "line",
+                    "css_class": css_class,
                     "tokens": _tokens(cue.text, accent),
                 }
             )
@@ -307,37 +316,6 @@ def _timeline_data(frame: Frame) -> list[dict]:
     return events
 
 
-def _storyboard_data(storyboard: Storyboard) -> dict:
-    return {
-        "composition_id": storyboard.composition_id,
-        "duration": storyboard.duration,
-        "width": storyboard.width,
-        "height": storyboard.height,
-        "fps": storyboard.fps,
-        "accent_word": storyboard.accent_word,
-        "frames": [
-            {
-                "index": frame.index,
-                "id": frame.id,
-                "start": frame.start,
-                "end": round(frame.start + frame.duration, 3),
-                "kicker": frame.kicker,
-                "groups": [
-                    {
-                        "id": group.id,
-                        "kind": group.kind,
-                        "start": group.start,
-                        "end": round(group.start + group.duration, 3),
-                        "cues": [{"start": cue.start, "text": cue.text} for cue in group.cues],
-                    }
-                    for group in frame.groups
-                ],
-            }
-            for frame in storyboard.frames
-        ],
-    }
-
-
 def _local(absolute: float, frame: Frame) -> float:
     return round(max(0.0, min(frame.duration, absolute - frame.start)), 3)
 
@@ -410,7 +388,6 @@ def _copy_clips(
         clip_map[source] = MediaClip(
             source=source,
             rel=dest.relative_to(clips_dir.parent.parent).as_posix(),
-            name=name,
             duration=duration,
             is_image=is_image,
         )
@@ -429,7 +406,6 @@ def _write_project_files(
     transcript: Transcript,
     audio_rel: str,
     clip_map: dict[Path, MediaClip],
-    storyboard_md: str,
 ) -> None:
     version = spec.hyperframes_version
     (project / "meta.json").write_text(
@@ -496,8 +472,6 @@ def _write_project_files(
         ),
         encoding="utf-8",
     )
-
-    (project / "STORYBOARD.md").write_text(storyboard_md, encoding="utf-8")
 
     scenes_dir = project / "scenes"
     scenes_dir.mkdir(parents=True, exist_ok=True)

@@ -4,7 +4,7 @@
 {{ fonts_css | safe }}
       #stage {
         position: relative; width: 100%; height: 100%; overflow: hidden;
-        background: {{ theme.bg }}; container-type: size;
+        background: {% if overlay %}transparent{% else %}{{ theme.bg }}{% endif %}; container-type: size;
         font-family: "{{ theme.font_body }}", system-ui, sans-serif;
       }
       .group { position: absolute; inset: 0; opacity: 0; }
@@ -15,13 +15,13 @@
         font-size: 0.72cqw; letter-spacing: 0.14em; text-transform: uppercase; color: {{ theme.accent }};
       }
       .line {
-        position: absolute; left: 5.5cqw; right: 5.5cqw; bottom: 18cqw;
+        position: absolute; left: 5.5cqw; right: 5.5cqw; bottom: 8cqw;
         font-weight: 700; font-size: {{ theme.line_size }}cqw; line-height: 1.1;
         letter-spacing: {{ theme.letter_spacing }}em; color: {{ theme.cream }}; text-transform: lowercase;
         text-shadow: 0 2px 18px rgba(0, 0, 0, 0.85);
       }
       .word {
-        position: absolute; left: 5.5cqw; bottom: 12cqw;
+        position: absolute; left: 5.5cqw; bottom: 6cqw;
         font-weight: 900; font-size: {{ theme.word_size }}cqw; line-height: 0.9;
         letter-spacing: -0.04em; color: {{ theme.cream }}; text-transform: lowercase;
         text-shadow: 0 3px 22px rgba(0, 0, 0, 0.85);
@@ -37,6 +37,7 @@
         font-weight: 400; font-size: 1.6cqw; line-height: 1.5; color: rgba(240, 236, 229, 0.78);
         text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
       }
+      .pos-bottom { bottom: 6cqw; }
       .accent { color: {{ theme.accent }}; }
       .scrim {
         position: absolute; inset: 0; pointer-events: none;
@@ -61,13 +62,34 @@
       .scene-scan {
         background-image: repeating-linear-gradient(180deg, rgba(240, 236, 229, 0.05) 0px, rgba(240, 236, 229, 0.05) 2px, rgba(0, 0, 0, 0) 2px, rgba(0, 0, 0, 0) 6px);
       }
+      .scene-blocks .box {
+        position: absolute; display: block; border: 1px solid rgba(255, 255, 255, 0.85);
+      }
+      .scene-blocks .box-label {
+        position: absolute; left: -1px; top: -1.6cqw; padding: 0 0.25cqw;
+        background: rgba(0, 0, 0, 0.75);
+        font-family: "{{ theme.font_mono }}", monospace; font-weight: 500;
+        font-size: 0.62cqw; letter-spacing: 0.12em; text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.95);
+      }
+      .scene-yolo .ybox {
+        position: absolute; display: block; border: 1px solid rgba(255, 255, 255, 0.9);
+      }
+      .scene-yolo .ybox-label {
+        position: absolute; left: -1px; top: -1.6cqw; padding: 0 0.25cqw;
+        background: rgba(0, 0, 0, 0.75);
+        font-family: "{{ theme.font_mono }}", monospace; font-weight: 500;
+        font-size: 0.62cqw; letter-spacing: 0.12em; text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.95);
+      }
     </style>
 
 {% include "partials/media.html.j2" %}
 {% include "partials/scenes.html.j2" %}
 
-    <div class="scrim"></div>
+{% if not overlay %}    <div class="scrim"></div>
     <div class="grain"></div>
+{% endif %}
 {% include "partials/group.html.j2" %}
 
     <script>

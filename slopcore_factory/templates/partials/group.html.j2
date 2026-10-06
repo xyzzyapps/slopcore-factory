@@ -1,7 +1,7 @@
 {% for group in groups %}
     <div class="group" id="{{ group.id }}">
-      <div class="kick">{{ group.kicker }}</div>
-{% for element in group.elements %}
+{% if group.kicker and not overlay %}      <div class="kick">{{ group.kicker }}</div>
+{% endif %}{% for element in group.elements %}
       <div class="{{ element.css_class }}" id="{{ element.id }}">{% for token in element.tokens %}{% if token.accent %}<span class="accent">{{ token.text }}</span>{% else %}{{ token.text }}{% endif %}{% endfor %}</div>
 {% endfor %}
     </div>

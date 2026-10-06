@@ -130,3 +130,86 @@ def test_fallback_background_is_used(lyrics_file: Path, tmp_path: Path) -> None:
     )
     storyboard = blueprint_to_storyboard(blueprint, cues, doc, fallback_backgrounds=[fallback])
     assert storyboard.frames[0].background == fallback
+
+
+def test_shot_media_overrides_the_clip(lyrics_file: Path, tmp_path: Path) -> None:
+    from slopcore_factory.blueprint import SeedanceClip
+
+    doc = parse_lyrics(lyrics_file)
+    cues = _cues(doc)
+    clip_file = tmp_path / "ls01.mp4"
+    clip_file.write_bytes(b"x")
+    image = tmp_path / "room.png"
+    image.write_bytes(b"x")
+    blueprint = Blueprint(
+        title="t",
+        duration=10.0,
+        shots=[
+            Shot(
+                id="s1",
+                t0=0.0,
+                t1=10.0,
+                motion_tier="seedance",
+                seedance_clip="ls01",
+                media=str(image),
+                type=[ShotType(0, "subtitle")],
+            )
+        ],
+        seedance=[SeedanceClip("ls01", 5.0, path=str(clip_file))],
+    )
+    storyboard = blueprint_to_storyboard(blueprint, cues, doc)
+    assert storyboard.frames[0].background == image
+
+
+def test_blank_chrome_and_section_means_no_kicker(lyrics_file: Path) -> None:
+    doc = parse_lyrics(lyrics_file)
+    cues = _cues(doc)
+    blueprint = Blueprint(
+        title="t",
+        duration=10.0,
+        shots=[Shot(id="s1", t0=0.0, t1=10.0, type=[ShotType(0, "subtitle")])],
+    )
+    storyboard = blueprint_to_storyboard(blueprint, cues, doc)
+    assert storyboard.frames[0].kicker == ""
+
+
+def test_type_position_overrides_the_cue(lyrics_file: Path) -> None:
+    doc = parse_lyrics(lyrics_file)
+    cues = _cues(doc)
+    blueprint = Blueprint(
+        title="t",
+        duration=10.0,
+        shots=[
+            Shot(
+                id="s1",
+                t0=0.0,
+                t1=10.0,
+                type=[
+                    ShotType(0, "subtitle", position="bottom"),
+                    ShotType(1, "subtitle", position="lower"),
+                ],
+            )
+        ],
+    )
+    storyboard = blueprint_to_storyboard(blueprint, cues, doc)
+    got = {cue.index: cue.position for group in storyboard.frames[0].groups for cue in group.cues}
+    assert got[0] == "bottom"
+    assert got[1] == "lower"
+    # the shared cue objects are copied, never mutated
+    assert cues[0].position == ""
+    assert cues[1].position == ""
+
+
+def test_type_offset_delays_the_cue(lyrics_file: Path) -> None:
+    doc = parse_lyrics(lyrics_file)
+    cues = _cues(doc)
+    blueprint = Blueprint(
+        title="t",
+        duration=10.0,
+        shots=[Shot(id="s1", t0=0.0, t1=10.0, type=[ShotType(0, "subtitle", offset=3.0)])],
+    )
+    storyboard = blueprint_to_storyboard(blueprint, cues, doc)
+    cue = storyboard.frames[0].groups[0].cues[0]
+    assert cue.start == round(cues[0].start + 3.0, 3)
+    assert cue.end == round(cues[0].end + 3.0, 3)
+    assert cues[0].start == 0.5  # the shared cue is untouched

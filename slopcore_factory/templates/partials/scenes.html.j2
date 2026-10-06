@@ -7,5 +7,9 @@
     <div class="scene scene-marquee" id="{{ scene.id }}" data-layout-allow-overlap aria-hidden="true"><div class="track">{% for word in scene.words %}<span>{{ word }}</span>{% endfor %}{% for word in scene.words %}<span>{{ word }}</span>{% endfor %}</div></div>
 {% elif scene.kind == "scan" %}
     <div class="scene scene-scan" id="{{ scene.id }}" data-layout-allow-overlap aria-hidden="true"></div>
+{% elif scene.kind == "blocks" %}
+    <div class="scene scene-blocks" id="{{ scene.id }}" data-layout-allow-overlap data-layout-allow-overflow aria-hidden="true">{% for r in scene.rects %}<span class="box" style="left: {{ r.left }}%; top: {{ r.top }}%; width: {{ r.w }}%; height: {{ r.h }}%"><i class="box-label">{{ r.label }}</i></span>{% endfor %}</div>
+{% elif scene.kind == "yolo" %}
+    <div class="scene scene-yolo" id="{{ scene.id }}" data-layout-allow-overlap data-layout-allow-overflow aria-hidden="true">{% for b in scene.boxes %}<span class="ybox" id="{{ b.id }}" style="left: {{ b.x }}%; top: {{ b.y }}%; width: {{ b.w }}%; height: {{ b.h }}%"><i class="ybox-label" data-layout-allow-overlap>{{ b.label }}</i></span>{% endfor %}</div>
 {% endif %}
 {% endfor %}

@@ -107,6 +107,7 @@ def build_spec(
         "dry_run",
         "song_backend",
         "song_command",
+        "supersede_reason",
         "seed",
     )
     extra = {key: merged[key] for key in extra_keys if key in merged}

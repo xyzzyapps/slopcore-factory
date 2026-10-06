@@ -13,9 +13,10 @@ indices, the cues carry the seconds).
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from pathlib import Path
 
-from .blueprint import Blueprint, Shot
+from .blueprint import Blueprint, Shot, ShotType
 from .logging_setup import get_logger
 from .models import Cue, Frame, Group, LyricsDoc, Scene, Storyboard
 from .scenes import is_builtin
@@ -57,7 +58,9 @@ def blueprint_to_storyboard(
 
     frames: list[Frame] = []
     for index, shot in enumerate(sorted(blueprint.shots, key=lambda s: s.t0), start=1):
-        background = clip_paths.get(shot.seedance_clip) if shot.seedance_clip else None
+        background = Path(shot.media) if shot.media else None
+        if background is None and shot.seedance_clip:
+            background = clip_paths.get(shot.seedance_clip)
         if background is None and fallbacks:
             background = fallbacks[(index - 1) % len(fallbacks)]
         frames.append(
@@ -69,7 +72,7 @@ def blueprint_to_storyboard(
                 groups=_groups_for_shot(shot, cue_by_index),
                 scenes=_scenes_for_shot(shot),
                 background=background,
-                kicker=shot.chrome or shot.section or f"no. {index:02d}",
+                kicker=shot.chrome or shot.section,
             )
         )
 
@@ -89,21 +92,51 @@ def blueprint_to_storyboard(
 
 def _scenes_for_shot(shot: Shot) -> list[Scene]:
     anim = shot.animation
-    if not anim:
-        return []
     short = safe_id(shot.id)
-    if anim.scene and is_builtin(anim.scene):
-        return [Scene(id=f"{short}-scene", kind=anim.scene, t0=shot.t0, t1=shot.t1)]
-    if anim.module:
-        return [
+    scenes: list[Scene] = []
+    if anim and anim.scene and is_builtin(anim.scene):
+        scenes.append(Scene(id=f"{short}-scene", kind=anim.scene, t0=shot.t0, t1=shot.t1))
+    elif anim and anim.module:
+        scenes.append(
             Scene(id=f"{short}-scene", kind="custom", t0=shot.t0, t1=shot.t1, module=anim.module)
+        )
+    if shot.detections:
+        scenes.append(
+            Scene(
+                id=f"{short}-yolo",
+                kind="yolo",
+                t0=shot.t0,
+                t1=shot.t1,
+                params={"boxes": shot.detections},
+            )
+        )
+    return scenes
+
+
+def _with_overrides(cue: Cue, entry: ShotType) -> Cue:
+    """A cue copy carrying a shot line's overrides (the shared cue is kept)."""
+    changes: dict = {}
+    if entry.position and entry.position != cue.position:
+        changes["position"] = entry.position
+    if entry.offset:
+        changes["start"] = round(cue.start + entry.offset, 3)
+        changes["end"] = round(cue.end + entry.offset, 3)
+        changes["words"] = [
+            replace(
+                word,
+                start=round(word.start + entry.offset, 3),
+                end=round(word.end + entry.offset, 3),
+            )
+            for word in cue.words
         ]
-    return []
+    if not changes:
+        return cue
+    return replace(cue, **changes)
 
 
 def _groups_for_shot(shot: Shot, cue_by_index: dict[int, Cue]) -> list[Group]:
     cues = [
-        cue_by_index[entry.line]
+        _with_overrides(cue_by_index[entry.line], entry)
         for entry in sorted(shot.type, key=lambda e: e.line)
         if entry.line in cue_by_index
     ]
@@ -134,7 +167,7 @@ def _groups_for_shot(shot: Shot, cue_by_index: dict[int, Cue]) -> list[Group]:
                 start=start,
                 duration=round(max(1.0, end - start), 3),
                 cues=chunk_cues,
-                kicker=shot.chrome or shot.section or shot.id,
+                kicker=shot.chrome or shot.section,
             )
         )
     return groups

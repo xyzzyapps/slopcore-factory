@@ -78,7 +78,8 @@ class SunoSongProvider:
             payload["negative_tags"] = negative_tags
 
         log.info("submitting Suno song task (%ss)", payload["duration"])
-        task = client.submit_once("song-v1", "song", payload)
+        supersede = str(spec.extra.get("supersede_reason") or "").strip() or None
+        task = client.submit_once("song-v1", "song", payload, supersede_reason=supersede)
         if task is None:
             raise SongGenerationError("Suno submission failed (see ledger)")
 
