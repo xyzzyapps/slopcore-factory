@@ -19,7 +19,6 @@ log = get_logger("budget")
 # 2026 EvoLink published rates (fallback if slopcore-hf is unavailable).
 RATES_USD_PER_SECOND = {"480p": 0.138, "720p": 0.296}
 SUNO_USD = 0.118  # one request, four takes
-PLATE_USD = 0.068  # one Seedream plate
 RETRY_BUFFER = 1.35  # covers and retries overshoot the plan
 
 
@@ -37,23 +36,27 @@ def _rate(quality: str) -> float:
 
 
 def estimate(blueprint: Blueprint) -> Budgets:
-    """Planned spend for a blueprint (Seedance + plates + song + buffer)."""
+    """Planned spend for a blueprint (Seedance + song + buffer).
+
+    Plates are not charged: image generation is a non-goal, so no command would
+    spend it. The song is charged only when the plan's backend is Suno; a
+    supplied track is free.
+    """
     quality = blueprint.budgets.seedance_quality or "720p"
     buffer = float(blueprint.budgets.retry_buffer or RETRY_BUFFER)
     clip_seconds = sum(clip.duration for clip in blueprint.seedance)
     if not clip_seconds:  # lipsync windows imply clip seconds too
         clip_seconds = blueprint.sung_seconds
     seedance_usd = round(clip_seconds * _rate(quality) * buffer, 2)
-    images_usd = round(len(blueprint.plates) * PLATE_USD, 2)
-    suno_usd = SUNO_USD
+    suno_usd = SUNO_USD if blueprint.meta.get("song_backend") == "suno" else 0.0
     return Budgets(
         cap_usd=blueprint.budgets.cap_usd,
         seedance_seconds=round(clip_seconds, 1),
         seedance_quality=quality,
         seedance_usd=seedance_usd,
         suno_usd=suno_usd,
-        images_usd=images_usd,
-        total_usd=round(seedance_usd + images_usd + suno_usd, 2),
+        images_usd=0.0,
+        total_usd=round(seedance_usd + suno_usd, 2),
         retry_buffer=buffer,
     )
 
@@ -82,10 +85,10 @@ def report(blueprint: Blueprint) -> str:
     b = blueprint.budgets
     lines = [
         f"seedance   {b.seedance_seconds:>7.1f} s @ {b.seedance_quality}  ${b.seedance_usd:>7.2f}",
-        f"plates     {len(blueprint.plates):>7d}                         ${b.images_usd:>7.2f}",
-        f"song                                        ${b.suno_usd:>7.2f}",
-        f"total                                       ${b.total_usd:>7.2f}",
     ]
+    if b.suno_usd:
+        lines.append(f"song                                        ${b.suno_usd:>7.2f}")
+    lines.append(f"total                                       ${b.total_usd:>7.2f}")
     if b.cap_usd:
         lines.append(f"cap                                         ${b.cap_usd:>7.2f}")
     return "\n".join(lines)

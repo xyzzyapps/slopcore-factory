@@ -22,7 +22,16 @@ def test_estimate_scales_with_seconds() -> None:
     budgets = estimate(_blueprint(seconds=30.0))
     assert budgets.seedance_seconds == 30.0
     assert budgets.seedance_usd > 0
-    assert budgets.total_usd > budgets.seedance_usd
+    # a supplied song and no plate command: the total is the clips alone
+    assert budgets.total_usd == budgets.seedance_usd
+    assert budgets.suno_usd == 0.0
+
+
+def test_estimate_charges_suno_only_for_a_suno_run() -> None:
+    bp = _blueprint(seconds=30.0)
+    bp.meta["song_backend"] = "suno"
+    assert estimate(bp).suno_usd > 0
+    assert estimate(bp).total_usd > estimate(bp).seedance_usd
 
 
 def test_guard_raises_over_cap() -> None:

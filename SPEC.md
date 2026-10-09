@@ -185,18 +185,22 @@ when importable. `retry_buffer` is per-song: set 1.0 for a strict one-attempt-pe
 ## 9. Surfaces
 
 CLI: `init song align plan build check snapshot render run status blueprint storyboard
-analyze lipsync clips avsync covers review overlay repl`. `storyboard` takes `print`
-(default) / `write` / `run`; the REPL adds `storyboard shot <id>` and `treat`
-(`list` | `<shot>` | `<shot> <treatment> [value]`), plus `dryrun on|off` and `takes`.
+analyze lipsync clips avsync covers review overlay match doctor sing repl`. `storyboard`
+takes `print` (default) / `write` / `run`; `match` takes `--render` / `--threshold` /
+`--otio`; `sing` runs lipsync -> clips -> avsync -> covers. The REPL adds `storyboard
+shot <id> [build]`, `treat` (`list` | `<shot>` | `<shot> <treatment> [value]`),
+`match [video] [otio]`, `doctor` and `sing`, plus `dryrun on|off` and `takes`.
 
 ## 10. Testing
 
-104+ pytest tests, all offline: models, lyrics, timing/align, storyboard, storyboard
-markdown (render + parse round-trip), compose (incl. the text-only overlay), blueprint
-schema + validation, budget, dry-run providers, clip resolution + reuse + reference
-payloads, song supersede plumbing, media treatments, YOLO detection (fake model), scenes,
-avsync on synthetic wavs, covers, compiler (per-line position + timing offset), review,
-REPL, and the yue2 adapter (against a fake yue2 CLI). `ruff check` + `ruff format` clean.
+116+ pytest tests, all offline: models, lyrics, timing/align, storyboard, storyboard
+markdown (render + parse round-trip, save-through, clip-path resolution), compose (incl.
+the text-only overlay), match (scene-cut parsing, candidate filtering, OTIO retimes),
+doctor, blueprint schema + validation, budget (supplied-song quote), dry-run providers,
+clip resolution + reuse + reference payloads, song supersede plumbing, media treatments,
+YOLO detection (fake model), scenes, avsync on synthetic wavs, covers, compiler (per-line
+position + timing offset), the check gate, review, REPL, and the yue2 adapter (against a
+fake yue2 CLI). `ruff check` + `ruff format` clean.
 
 ## 11. Repo layout
 
@@ -239,3 +243,34 @@ songs/<song>.work/       work dir (blueprint, cues, treated, detections, cache, 
   touch lower (`bottom: 6cqw`).
 - A line can be nudged in time with `ShotType.offset` (seconds); "I'll keep it on" is
   delayed 3 s.
+- The later stages (lipsync, clips, covers, treat) write back through `storyboard.md` when
+  it exists (`storyboard_md.save_plan`), so the markdown stays the single live plan.
+- The quote matches the run: plates are never charged (image generation is a non-goal) and
+  the song is charged only when the backend is Suno.
+
+## 13. Matching a render back to its clips
+
+`match.py` reverse-engineers an edit from a finished video, so a lost NLE project can be
+rebuilt:
+
+- `scene_cuts(video, runner)` — ffmpeg scene detection (`select=gt(scene,t)`) → the cut
+  times, cuts closer than 0.2 s merged.
+- `candidate_clips(*dirs)` — the sources: every video (skipping the composer's renumbered
+  `clipN.mp4` copies, which duplicate the sources) plus every still.
+- `match(video, candidates, runner=...)` — preprocess each sampled frame (grayscale, top
+  crop to drop lower-third text, high-pass to remove a scrim/grain, normalise) and score
+  every segment frame against every clip frame (best pair wins), so it is **blind to
+  retimes**. Returns `Segment`s with the matched clip, the score and the margin.
+- `to_otio(segments, fps, lyrics, song)` — an OpenTimelineIO timeline: V1 the matched clips
+  at the exact cut points with `LinearTimeWarp` retimes, V2 the lyrics alpha, A1 the song.
+
+Command: `match` (CLI `--render/--threshold/--otio`; REPL `match [video] [otio]`). Needs
+OpenCV (`pip install .[match]`), imported lazily so the rest of the factory never depends
+on it.
+
+## 14. Preflight and errors
+
+`doctor.py` checks Python, ffmpeg/ffprobe, Node/npx (required) and the optional extras
+(OpenCV, librosa, langchain, ultralytics), demucs and the sibling `slopcore-hf` checkout.
+The CLI and the REPL catch `SlopcoreFactoryError` and print the message plus the log
+directory instead of a traceback; a failed `check` stops the chain.

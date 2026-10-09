@@ -25,6 +25,7 @@ from .blueprint import (
     BLUEPRINT_VERSION,
     Animation,
     AnimationScene,
+    AssetNeeds,
     Blueprint,
     Budgets,
     Chapter,
@@ -35,6 +36,7 @@ from .blueprint import (
     Shot,
     ShotType,
     load_blueprint,
+    save_blueprint,
 )
 from .errors import ConfigError
 from .models import Cue, FactorySpec, LyricsDoc
@@ -85,6 +87,10 @@ def plan_text(spec: FactorySpec, work_dir: Path) -> str:
     plan = load_plan(lyrics_path.parent, Path(work_dir), lyrics)
     if plan is not None:
         blueprint, cues = plan
+        if not blueprint.meta.get("song_backend"):
+            blueprint.meta["song_backend"] = str(
+                spec.extra.get("song_backend") or ("suno" if spec.generate_song else "supplied")
+            )
     else:
         blueprint_path = Path(work_dir) / "blueprint.yaml"
         if not blueprint_path.exists():
@@ -132,12 +138,21 @@ def _plan_data(
         {"key": "fps", "value": blueprint.fps},
         {"key": "duration", "value": f"{blueprint.duration:.3f}"},
         {"key": "theme", "value": blueprint.theme},
-        {"key": "lyrics", "value": blueprint.lyrics_path},
-        {"key": "audio", "value": blueprint.audio},
+        {"key": "lyrics", "value": _cell(blueprint.lyrics_path)},
+        {"key": "audio", "value": _cell(blueprint.audio)},
         {"key": "budget_usd", "value": f"{budgets.cap_usd:.2f}"},
         {"key": "retry_buffer", "value": f"{budgets.retry_buffer:.2f}"},
         {"key": "seedance_quality", "value": budgets.seedance_quality},
         {"key": "version", "value": blueprint.version},
+        {"key": "song_backend", "value": blueprint.meta.get("song_backend", "")},
+        {
+            "key": "generate_song",
+            "value": "true" if blueprint.meta.get("generate_song") else "false",
+        },
+        {
+            "key": "generate_clips",
+            "value": "true" if blueprint.meta.get("generate_clips") else "false",
+        },
     ]
     if dry_run is not None:
         settings.append({"key": "dry_run", "value": "true" if dry_run else "false"})
@@ -173,12 +188,29 @@ def _plan_data(
             "t0": f"{s.t0:.3f}",
             "t1": f"{s.t1:.3f}",
             "chapter": s.chapter,
+            "section": _cell(s.section),
             "framing": _cell(s.framing),
+            "action": _cell(s.action),
+            "camera": _cell(s.camera),
             "tier": s.motion_tier,
             "clip": s.seedance_clip or "",
             "treatment": s.treatment,
+            "value": f"{s.treatment_value:g}",
             "scene": _cell(s.animation.scene),
+            "module": _cell(s.animation.module),
             "media": _cell(s.media),
+            "chrome": _cell(s.chrome),
+            "lift": f"{s.lift:g}",
+            "meme": _cell(s.meme_visual),
+        }
+        for s in shots_sorted
+    ]
+    assets = [
+        {
+            "shot": s.id,
+            "plate": _cell(s.assets.plate),
+            "depth": "yes" if s.assets.depth else "no",
+            "tracking": _cell(", ".join(s.assets.tracking)),
         }
         for s in shots_sorted
     ]
@@ -203,7 +235,12 @@ def _plan_data(
             "clip": c.clip,
             "sing": "yes" if c.sing else "no",
             "duration": f"{c.duration:.2f}",
+            "start": f"{c.song_t0:.3f}",
+            "path": _cell(c.path),
+            "cover": c.cover_of,
+            "plate": _cell(c.plate),
             "reference": "yes" if c.use_reference else "no",
+            "words": _cell(c.words),
             "prompt": _cell(c.prompt),
         }
         for c in blueprint.seedance
@@ -249,6 +286,7 @@ def _plan_data(
         "character": character,
         "chapters": chapters,
         "shots": shots,
+        "assets": assets,
         "lyrics": lyrics,
         "song_style": blueprint.meta.get("song_style") or song_style,
         "clips": clips,
@@ -377,18 +415,33 @@ def parse(text: str, lyrics: LyricsDoc | None = None) -> tuple[Blueprint, list[C
                 t0=_num(row.get("start")),
                 t1=_num(row.get("end")),
                 chapter=row.get("chapter", ""),
+                section=row.get("section", ""),
                 framing=row.get("framing", ""),
+                action=row.get("action", ""),
+                camera=row.get("camera", ""),
                 motion_tier=row.get("tier", "code") or "code",
                 seedance_clip=(row.get("clip") or None),
                 treatment=row.get("treatment", "loop") or "loop",
                 treatment_value=_num(row.get("value")),
                 media=row.get("media", ""),
                 chrome=row.get("chrome", ""),
-                section=row.get("section", ""),
+                lift=_num(row.get("lift")),
+                meme_visual=row.get("meme", ""),
                 animation=Animation(scene=row.get("scene", ""), module=row.get("module", "")),
             )
         )
     shots.sort(key=lambda shot: shot.t0)
+    asset_rows = {row["shot"]: row for row in _table(sections.get("shot assets", []))}
+    for shot in shots:
+        row = asset_rows.get(shot.id)
+        if row:
+            shot.assets = AssetNeeds(
+                plate=row.get("plate", ""),
+                depth=_flag(row.get("depth")),
+                tracking=[
+                    part.strip() for part in row.get("tracking", "").split(",") if part.strip()
+                ],
+            )
 
     lyric_rows = _table(sections.get("lyrics", []))
     for row in lyric_rows:
@@ -413,6 +466,11 @@ def parse(text: str, lyrics: LyricsDoc | None = None) -> tuple[Blueprint, list[C
             duration=_num(row.get("duration")),
             prompt=row.get("prompt", ""),
             sing=_flag(row.get("sing")),
+            song_t0=_num(row.get("start")),
+            path=row.get("path", ""),
+            cover_of=row.get("cover", ""),
+            plate=row.get("plate", ""),
+            words=row.get("words", ""),
             use_reference=_flag(row.get("reference") or "yes", True),
         )
         for row in _table(sections.get("prompts/clips", []))
@@ -428,6 +486,11 @@ def parse(text: str, lyrics: LyricsDoc | None = None) -> tuple[Blueprint, list[C
         )
         for row in _table(sections.get("lipsync", []))
     ]
+    # a clip with no start inherits its lipsync window's start (avsync slices there)
+    window_start = {window.clip: window.song_t0 for window in lipsync}
+    for clip in clips:
+        if not clip.song_t0 and clip.clip in window_start:
+            clip.song_t0 = window_start[clip.clip]
 
     animation = [
         AnimationScene(
@@ -476,7 +539,12 @@ def parse(text: str, lyrics: LyricsDoc | None = None) -> tuple[Blueprint, list[C
         lipsync=lipsync,
         animation=animation,
         budgets=budgets,
-        meta={"song_style": _song_block(sections)},
+        meta={
+            "song_style": _song_block(sections),
+            "song_backend": settings.get("song_backend", ""),
+            "generate_song": _flag(settings.get("generate_song")),
+            "generate_clips": _flag(settings.get("generate_clips")),
+        },
     )
     return blueprint, _cues(lyric_rows, lyrics)
 
@@ -501,7 +569,9 @@ def load_plan(
     """The plan: ``storyboard.md`` first, else the legacy ``blueprint.yaml``."""
     plan = plan_path(song_dir)
     if plan.exists():
-        return parse(plan.read_text(encoding="utf-8"), lyrics)
+        blueprint, cues = parse(plan.read_text(encoding="utf-8"), lyrics)
+        _resolve_clip_paths(blueprint, Path(song_dir) / "assets" / "clips")
+        return blueprint, cues
     legacy = Path(work_dir) / "blueprint.yaml"
     if legacy.exists():
         return load_blueprint(legacy), None
@@ -509,17 +579,58 @@ def load_plan(
 
 
 def apply_settings(spec: FactorySpec, settings: dict[str, str]) -> None:
-    """Apply the plan's settings onto a spec (canvas, fps, theme, budget, dry-run)."""
+    """Apply the plan's settings onto a spec (canvas, fps, theme, audio, budget, dry-run)."""
     if settings.get("canvas"):
         spec.width, spec.height = _canvas(settings["canvas"])
     if settings.get("fps"):
         spec.fps = _int(settings.get("fps"), spec.fps)
     if settings.get("theme"):
         spec.theme_name = settings["theme"]
+    if settings.get("lyrics"):
+        spec.lyrics_path = Path(settings["lyrics"])
+    if settings.get("audio"):
+        spec.audio_path = Path(settings["audio"])
+    if settings.get("duration"):
+        spec.duration = _num(settings.get("duration"))
+    if settings.get("song_backend"):
+        spec.extra["song_backend"] = settings["song_backend"]
+    if "generate_song" in settings:
+        spec.generate_song = _flag(settings.get("generate_song"))
+    if "generate_clips" in settings:
+        spec.generate_clips = _flag(settings.get("generate_clips"))
     if settings.get("budget_usd"):
         spec.extra["budget_usd"] = _num(settings.get("budget_usd"))
     if "dry_run" in settings:
         spec.extra["dry_run"] = _flag(settings.get("dry_run"))
+
+
+def save_plan(
+    blueprint: Blueprint,
+    song_dir: Path,
+    work_dir: Path,
+    *,
+    spec: FactorySpec | None = None,
+    lyrics: LyricsDoc | None = None,
+) -> Path:
+    """Write the plan back: ``storyboard.md`` when it exists, else ``blueprint.yaml``.
+
+    The later stages (lipsync, clips, covers, treat) mutate the blueprint; writing
+    through here keeps the markdown the single live plan instead of leaving the
+    edit in the yaml the loader no longer prefers.
+    """
+    plan = plan_path(song_dir)
+    if plan.exists():
+        existing = load_plan(song_dir, Path(work_dir), lyrics)
+        cues = existing[1] if existing else None
+        style = song_style_for(spec) if spec else str(blueprint.meta.get("song_style", ""))
+        dry_run = bool(spec.extra.get("dry_run")) if spec else None
+        plan.write_text(
+            render(blueprint, cues, song_style=style, dry_run=dry_run), encoding="utf-8"
+        )
+        return plan
+    legacy = Path(work_dir) / "blueprint.yaml"
+    save_blueprint(blueprint, legacy)
+    return legacy
 
 
 def _title(text: str) -> str:
@@ -527,6 +638,25 @@ def _title(text: str) -> str:
         if line.startswith("# "):
             return line[2:].strip()
     return "untitled"
+
+
+def _resolve_clip_paths(blueprint: Blueprint, clips_dir: Path) -> None:
+    """Fill a clip's ``path`` from ``assets/clips/<id>.<ext>`` when the plan omits it."""
+    if not clips_dir.is_dir():
+        return
+    suffixes = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
+    for clip in blueprint.seedance:
+        if clip.path:
+            continue
+        names = sorted({clip.clip, re.sub(r"(\d+)", lambda m: str(int(m.group(1))), clip.clip)})
+        for name in names:
+            found = next(
+                (p for p in sorted(clips_dir.glob(f"{name}.*")) if p.suffix.lower() in suffixes),
+                None,
+            )
+            if found is not None:
+                clip.path = str(found)
+                break
 
 
 def _shot_at(shots: list[Shot], start: float) -> Shot | None:

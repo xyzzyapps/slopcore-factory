@@ -34,7 +34,7 @@ class Repl(cmd.Cmd):
     intro = (
         "slopcore-factory REPL. Type 'help' for commands, 'quit' to leave.\n"
         "Commands: lyrics song takes storyboard treat blueprint analyze lipsync clips avsync "
-        "covers review dryrun quote compile build check snapshot render status"
+        "covers review match doctor sing dryrun quote compile build check snapshot render status"
     )
     prompt = "slopcore> "
 
@@ -115,6 +115,17 @@ class Repl(cmd.Cmd):
 
     # -- commands ---------------------------------------------------------
 
+    def onecmd(self, line: str):  # noqa: ANN201 - cmd.Cmd's contract
+        """Catch factory errors so a missing prerequisite does not end the session."""
+        try:
+            return super().onecmd(line)
+        except SlopcoreFactoryError as exc:
+            print(f"error: {exc}")
+            return False
+        except OSError as exc:  # a missing tool, an unwritable file, ...
+            print(f"error: {exc}")
+            return False
+
     def do_lyrics(self, arg: str) -> None:
         """lyrics            show the parsed lyrics (sections and lines)."""
         doc = self._lyrics_doc()
@@ -159,7 +170,10 @@ class Repl(cmd.Cmd):
             self._run("render")
             return
         if mode == "shot":
-            self._show_shot(parts[1] if len(parts) > 1 else "")
+            shot_id = parts[1] if len(parts) > 1 else ""
+            self._show_shot(shot_id)
+            if len(parts) > 2 and parts[2] == "build":
+                self._rebuild_shot(shot_id)
             return
         if mode == "write":
             path.write_text(plan_text(self.spec, self.work), encoding="utf-8")
@@ -190,6 +204,19 @@ class Repl(cmd.Cmd):
         clip = next((c for c in blueprint.seedance if c.clip == shot.seedance_clip), None)
         if clip and clip.prompt:
             print(f"  prompt: {clip.prompt}")
+
+    def _rebuild_shot(self, shot_id: str) -> None:
+        """Re-run one shot's treatment and rebuild the project so its frame is current."""
+        from .treat import apply as apply_treatments
+
+        blueprint = self._load_blueprint()
+        done = apply_treatments(
+            blueprint, self.work / "treated", self.services.get("runner"), shot_id
+        )
+        self._save_plan()
+        for sid, path in done.items():
+            print(f"  treated {sid}: {path}")
+        self._run("build")
 
     def do_treat(self, arg: str) -> None:
         """treat [list | <shot> [treatment [value]]]   ffmpeg media treatments."""
@@ -258,6 +285,9 @@ class Repl(cmd.Cmd):
         )
         if not blueprint.budgets.cap_usd:
             blueprint.budgets.cap_usd = float(self.spec.extra.get("budget_usd", 0) or 0)
+        from .workflows import song_backend
+
+        blueprint.meta["song_backend"] = song_backend(self.spec)
         apply_estimate(blueprint)
         self.blueprint = blueprint
         path = save_blueprint(blueprint, self._blueprint_path())
@@ -343,6 +373,59 @@ class Repl(cmd.Cmd):
         times, paths, report = review(self.spec, self.work, self.services)
         print(f"review: {len(paths)} snapshot(s) at {times}")
         print(f"report: {report}")
+
+    def do_match(self, arg: str) -> None:
+        """match [video] [otio]   cut a render at its scenes and match each to a clip."""
+        from .match import candidate_clips, match, to_otio, write_json, write_otio
+
+        parts = (arg or "").split()
+        otio = "otio" in parts
+        paths = [part for part in parts if part != "otio"]
+        name = Path(self.spec.out_dir).name
+        renders = Path(self.spec.out_dir).parent / "renders"
+        render = Path(paths[0]) if paths else renders / f"{name}.mp4"
+        if not render.exists():
+            print(f"no render to match: {render}")
+            return
+        song_dir = Path(self.spec.lyrics_path).parent
+        candidates = candidate_clips(song_dir / "assets" / "clips", song_dir / "assets" / "media")
+        segments = match(render, candidates, runner=self.services.get("runner"), fps=self.spec.fps)
+        for seg in segments:
+            print(
+                f"  {seg.index:02d}  {seg.start:7.3f}-{seg.end:7.3f}  {seg.clip:<16} "
+                f"score {seg.score:+.3f}  margin {seg.margin:+.3f}"
+            )
+        print(f"match: {write_json(segments, renders / f'{name}-match.json')}")
+        if otio:
+            lyrics = renders / f"{name}-lyrics.mov"
+            timeline = to_otio(
+                segments,
+                fps=self.spec.fps,
+                lyrics=lyrics if lyrics.exists() else None,
+                song=Path(self.spec.audio_path) if self.spec.audio_path else None,
+                name=self.spec.title,
+            )
+            print(f"otio: {write_otio(timeline, renders / f'{name}-davinci.otio')}")
+
+    def do_sing(self, arg: str) -> None:
+        """sing [quality]      plan lipsync, resolve clips, measure drift, add covers."""
+        from .workflows import sing
+
+        quality = (arg or "").strip() or "720p"
+        blueprint, paths, results, covers = sing(
+            self.spec, self.work, self.services, quality=quality
+        )
+        print(f"windows: {len(blueprint.lipsync)}   clips: {len(paths)}")
+        for result in results:
+            state = "in sync" if result.in_sync else f"drift at {result.divergence}s"
+            print(f"  {result.clip:<8} {state}")
+        print(f"covers: {len(covers)}")
+
+    def do_doctor(self, arg: str) -> None:
+        """doctor            check python, ffmpeg, node, and the optional extras."""
+        from .doctor import checks, report
+
+        print(report(checks()))
 
     def do_compile(self, arg: str) -> None:
         """compile           build the HyperFrames project from the plan."""

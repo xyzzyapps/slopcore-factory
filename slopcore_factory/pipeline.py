@@ -101,6 +101,9 @@ class Pipeline:
                 self.results.append(StageResult(stage, "FAILED", detail=str(exc)))
                 break
             self.results.append(result)
+            if result.status == "FAILED":
+                log.error("stage %s failed: %s", stage, result.detail)
+                break
 
         self._write_run_manifest()
         return self.results

@@ -24,6 +24,7 @@ dependencies = [
 [project.optional-dependencies]
 beats = ["librosa>=0.10"]
 llm = ["langchain>=0.3", "langchain-anthropic>=0.3"]
+match = ["opencv-python>=4"]
 dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]

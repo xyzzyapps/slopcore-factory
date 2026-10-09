@@ -19,6 +19,7 @@ from pathlib import Path
 
 from .clipgen import EvoLinkClipProvider
 from .config import build_spec
+from .errors import SlopcoreFactoryError
 from .locator import ServiceLocator
 from .logging_setup import get_logger, setup_logging
 from .pipeline import Pipeline
@@ -61,6 +62,9 @@ HELP = {
     "review": "snapshot the built project and write a review report",
     "overlay": "render the lyrics-only layer as a transparent MOV (for an NLE)",
     "storyboard": "print the plan, or write storyboard.md beside the lyrics",
+    "match": "cut a render at its scenes and match each segment to a clip",
+    "doctor": "check python, ffmpeg, node, and the optional extras",
+    "sing": "the whole singing path: lipsync -> clips -> avsync -> covers",
     "repl": "interactive shell over every factory capability",
 }
 
@@ -89,12 +93,17 @@ def build_parser() -> argparse.ArgumentParser:
         "review",
         "overlay",
         "storyboard",
+        "match",
+        "doctor",
+        "sing",
         "repl",
     ]:
         sp = sub.add_parser(name, help=HELP[name])
         if name == "status":
             sp.add_argument("--out", required=True, type=Path, help="generated project directory")
             continue
+        if name == "doctor":
+            continue  # no arguments
         _add_common(sp)
         if name in {"run", "render"}:
             sp.add_argument("--snapshot", action="store_true", help="also render still frames")
@@ -123,6 +132,12 @@ def build_parser() -> argparse.ArgumentParser:
                 default="print",
                 help="print the plan, write it beside the lyrics, or execute it",
             )
+        if name == "match":
+            sp.add_argument("--render", type=Path, default=None, help="video to match")
+            sp.add_argument("--threshold", type=float, default=0.12, help="scene-change threshold")
+            sp.add_argument("--otio", action="store_true", help="also write an OTIO timeline")
+        if name == "sing":
+            sp.add_argument("--quality", default="720p", help="Seedance quality (480p/720p)")
     return parser
 
 
@@ -175,11 +190,31 @@ def _add_common(sp: argparse.ArgumentParser) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    try:
+        return _dispatch(args)
+    except SlopcoreFactoryError as exc:
+        print(f"error: {exc}")
+        out = getattr(args, "out", None)
+        lyrics = getattr(args, "lyrics", None)
+        if out or lyrics:
+            base = Path(out) if out else Path("songs") / _slug(Path(lyrics).stem)
+            print(f"log:   {base.parent / (base.name + '.work') / 'logs'}")
+        return 1
 
+
+def _dispatch(args: argparse.Namespace) -> int:
+    if args.command not in {"doctor", "status", "init"}:
+        from .doctor import require_tools
+
+        require_tools()
     if args.command == "init":
         return _cmd_init(args)
     if args.command == "status":
         return _cmd_status(args.out)
+    if args.command == "doctor":
+        return _cmd_doctor(args)
+    if args.command == "sing":
+        return _cmd_sing(args)
     if args.command == "repl":
         return _cmd_repl(args)
     if args.command == "blueprint":
@@ -200,6 +235,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_overlay(args)
     if args.command == "storyboard":
         return _cmd_storyboard(args)
+    if args.command == "match":
+        return _cmd_match(args)
 
     spec = _make_spec(args)
     work = _work_dir(spec)
@@ -444,8 +481,48 @@ def _cmd_storyboard(args: argparse.Namespace) -> int:
         if plan.exists():
             apply_settings(spec, settings_of(plan.read_text(encoding="utf-8")))
         results = Pipeline(spec, _services(spec), work).run(until="render", skip={"snapshot"})
+        _print_results(results)
         return 0 if all(result.status != "FAILED" for result in results) else 1
     print(plan_text(spec, work))
+    return 0
+
+
+def _cmd_match(args: argparse.Namespace) -> int:
+    from .match import candidate_clips, match, to_otio, write_json, write_otio
+
+    spec = _make_spec(args)
+    work = _work_dir(spec)
+    setup_logging(work / "logs")
+    services = _services(spec)
+
+    song_dir = Path(spec.lyrics_path).parent
+    name = Path(spec.out_dir).name
+    renders = Path(spec.out_dir).parent / "renders"
+    render = Path(args.render) if args.render else renders / f"{name}.mp4"
+    if not render.exists():
+        print(f"no render to match: {render}")
+        return 1
+
+    candidates = candidate_clips(song_dir / "assets" / "clips", song_dir / "assets" / "media")
+    segments = match(
+        render, candidates, runner=services.get("runner"), fps=spec.fps, threshold=args.threshold
+    )
+    for seg in segments:
+        print(
+            f"  {seg.index:02d}  {seg.start:7.3f}-{seg.end:7.3f}  {seg.clip:<16} "
+            f"score {seg.score:+.3f}  margin {seg.margin:+.3f}"
+        )
+    print(f"match: {write_json(segments, renders / f'{name}-match.json')}")
+    if args.otio:
+        lyrics = renders / f"{name}-lyrics.mov"
+        timeline = to_otio(
+            segments,
+            fps=spec.fps,
+            lyrics=lyrics if lyrics.exists() else None,
+            song=Path(spec.audio_path) if spec.audio_path else None,
+            name=spec.title,
+        )
+        print(f"otio: {write_otio(timeline, renders / f'{name}-davinci.otio')}")
     return 0
 
 
@@ -504,12 +581,14 @@ def _cmd_repl(args: argparse.Namespace) -> int:
 
 
 def _cmd_init(args: argparse.Namespace) -> int:
-    base = args.out or (Path("songs") / _slug(args.lyrics.stem))
-    base = Path(base)
+    lyrics = Path(args.lyrics)
+    # a lyrics.md already names its own song folder; else fall back to the stem
+    default = (
+        lyrics.parent if lyrics.name.lower() == "lyrics.md" else Path("songs") / _slug(lyrics.stem)
+    )
+    base = Path(args.out or default)
     (base / "assets" / "clips").mkdir(parents=True, exist_ok=True)
     (base / "assets" / "ref").mkdir(parents=True, exist_ok=True)
-
-    lyrics = Path(args.lyrics)
     if not lyrics.exists():
         lyrics.parent.mkdir(parents=True, exist_ok=True)
         lyrics.write_text(
@@ -527,8 +606,32 @@ def _cmd_init(args: argparse.Namespace) -> int:
     print(f"scaffolded: {base}")
     print(f"  lyrics: {lyrics}")
     print(f"  drop audio at: {base / 'assets' / 'bgm.mp3'}")
-    print(f"  then run: slopcore_factory build --lyrics {lyrics}")
+    print(f"  then run: slopcore-factory build --lyrics {lyrics} --out {base}")
     return 0
+
+
+def _cmd_sing(args: argparse.Namespace) -> int:
+    from .workflows import sing
+
+    spec = _make_spec(args)
+    work = _work_dir(spec)
+    setup_logging(work / "logs")
+    blueprint, paths, results, covers = sing(spec, work, _services(spec), quality=args.quality)
+    print(f"windows: {len(blueprint.lipsync)}   clips: {len(paths)}")
+    for result in results:
+        state = "in sync" if result.in_sync else f"drift at {result.divergence}s"
+        print(f"  {result.clip:<8} {state}")
+    print(f"covers: {len(covers)}")
+    return 0
+
+
+def _cmd_doctor(args: argparse.Namespace) -> int:
+    from .doctor import checks, report
+
+    rows = checks()
+    print(report(rows))
+    # the tools are required; the extras only disable features
+    return 0 if all(row.ok for row in rows if row.required) else 1
 
 
 def _cmd_status(out: Path) -> int:

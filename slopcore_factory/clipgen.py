@@ -127,11 +127,13 @@ class EvoLinkClipProvider:
         quality: str = "720p",
         aspect: str = "16:9",
         reference_images: list[Path] | None = None,
+        supersede_reason: str | None = None,
     ) -> None:
         self.reference_audio = Path(reference_audio) if reference_audio else None
         self.quality = quality
         self.aspect = aspect
         self.reference_images = [Path(p) for p in (reference_images or [])][:MAX_REFERENCE_IMAGES]
+        self.supersede_reason = supersede_reason
         self._image_urls: list[str] | None = None
 
     def _upload_references(self, client) -> list[str]:  # pragma: no cover - paid
@@ -180,7 +182,9 @@ class EvoLinkClipProvider:
             )
             payload["audio_urls"] = [host_file(slice_path, cache_path=data_dir / "hosted.jsonl")]
 
-        task = client.submit_once(f"clip-{entry.clip}-v1", "video", payload)
+        task = client.submit_once(
+            f"clip-{entry.clip}-v1", "video", payload, supersede_reason=self.supersede_reason
+        )
         if task is None:
             raise ClipGenerationError(f"{entry.clip}: submission failed")
         videos = [u for k, u in ev.EvoLinkClient.find_media(task) if k == "video"]

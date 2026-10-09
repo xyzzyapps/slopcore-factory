@@ -46,6 +46,7 @@ cd C:\Users\manic\Documents\PROG\moh\slopcore-factory
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+# optional extras: .[beats] (librosa), .[match] (OpenCV), .[llm] (LangChain)
 ```
 
 Check it worked:
@@ -54,7 +55,7 @@ Check it worked:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-You should see `104 passed` (or similar). If you do, everything is installed.
+You should see `116 passed` (or similar). If you do, everything is installed.
 
 > Every command below starts with `.\.venv\Scripts\slopcore-factory.exe`. That's just "run
 > the tool from this project's Python environment". You must run it from the
@@ -158,13 +159,17 @@ $out = "songs/my-song-video"
 | What | Where |
 |---|---|
 | The video project (HTML/JS) | `songs/<out>/index.html` |
-| The storyboard plan | `songs/<out>/storyboard.md` |
+| The storyboard plan | `storyboard.md`, **beside `lyrics.md`** |
 | Review pictures + report | `songs/<out>/reviews/review.md` |
 | **The finished video** | `songs/renders/<out>.mp4` |
 | Lyrics-only layer (alpha) | `songs/renders/<out>-lyrics.mov` |
 | Editor timeline (OpenTimelineIO) | `songs/renders/<out>.otio` |
 
 Rendering takes a few minutes for a 3-minute song.
+
+Three places matter: the project in `--out`, the work dir at `<out>.work/` (stage cache,
+cues, `blueprint.yaml`, logs), and the plan `storyboard.md` beside your `lyrics.md`. Run
+`slopcore-factory doctor` to check your tools.
 
 ---
 
@@ -206,6 +211,9 @@ Type `help` inside the shell to list everything.
 | `covers` | plans a "cover" clip for the parts that drifted |
 | `review` | takes stills at key moments and writes a report |
 | `overlay` | renders the lyrics-only layer (text only, transparent) as a MOV for an editor |
+| `match` | cuts a finished render at its scenes and matches each segment back to a clip |
+| `doctor` | checks python, ffmpeg, node and the optional extras |
+| `sing` | runs the whole singing path: lipsync -> clips -> avsync -> covers |
 | `build` | builds the video project |
 | `check` | lints/tests the project (must pass before rendering) |
 | `snapshot` | saves still frames |

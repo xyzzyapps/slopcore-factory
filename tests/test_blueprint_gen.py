@@ -32,7 +32,7 @@ def test_offline_blueprint_is_valid(tmp_path: Path, lyrics_file: Path) -> None:
     assert bp.shots[0].t0 == 0.0
     assert abs(bp.shots[-1].t1 - duration) < 0.05
     assert any(shot.type for shot in bp.shots)  # lyric lines are placed as type
-    assert bp.budgets.total_usd > 0  # the song alone has a cost
+    assert bp.budgets.retry_buffer > 0  # the estimate was applied
 
 
 def test_extract_yaml_tolerates_fences() -> None:

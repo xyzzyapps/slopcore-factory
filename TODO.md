@@ -23,8 +23,32 @@ No Studio UI. See `SPEC.md` for the design.
 - [ ] Remaining generic heuristics (`HELD_SECTIONS`, stopwords, canvas/tempo defaults) stay
       documented, overridable defaults — not song content.
 
+### Review (2026-10-09) follow-ups
+- [x] One plan file: `save_plan` writes `storyboard.md` when it exists, and the mutating
+      commands (lipsync, clips, covers, treat) plus `ensure_blueprint` read/write through
+      it, so their edits are no longer stranded in `blueprint.yaml`.
+- [x] Round-trip the fields the later stages read: `treatment_value` (`value` column),
+      `chrome`, clip `song_t0` (`start`), `path`, `cover_of`; a clip with no start inherits
+      its lipsync row's start (avsync); `apply_settings` applies `audio`/`duration`.
+- [x] A failed `check` stops the chain; `storyboard run` prints the stage table.
+- [x] The CLI and REPL catch `SlopcoreFactoryError` and print the log dir; `doctor` checks
+      the tools + the optional extras.
+- [x] `init` defaults to the `lyrics.md` folder and prints `slopcore-factory`.
+- [x] `--supersede-reason` reaches clip submission; the treated-file cache key includes
+      `treatment_value`.
+- [x] The quote matches the run: no plate dollars (image generation is a non-goal), Suno
+      only for a Suno run.
+- [x] One lipsync command: `sing` (lipsync -> clips -> avsync -> covers), CLI + REPL.
+- [x] `storyboard shot <id> build` re-runs that shot's treatment and rebuilds the project.
+- [x] The markdown round-trips the remaining fields: shot `section`/`action`/`camera`/
+      `lift`/`meme_visual`, a `## shot assets` table (plate/depth/tracking), clip `words`/
+      `plate`, and the settings `lyrics`/`song_backend`/`generate_song`/`generate_clips`.
+- [x] A missing required tool is a clean error (`doctor.require_tools` in the CLI; the REPL
+      catches `OSError`).
+- [ ] Still open: the multi-agent storyboard panel (a TODO feature, not a defect).
+
 ### Session
-- [ ] Commit + push (storyboard pivot, `treat` command, dead-code cleanup).
+- [ ] Commit + push (storyboard pivot, `treat`, `match`, `doctor`, the review fixes).
 
 ## Done (condensed)
 

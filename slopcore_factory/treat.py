@@ -56,7 +56,7 @@ def apply(
         if source is None or source.suffix.lower() in IMAGE_SUFFIXES:
             log.warning("%s: no clip for treatment %s", shot.id, shot.treatment)
             continue
-        dest = out_dir / f"{shot.id}-{shot.treatment}.mp4"
+        dest = out_dir / f"{shot.id}-{shot.treatment}-{shot.treatment_value:g}.mp4"
         if not dest.exists():
             _render(source, dest, shot, runner)
         shot.media = dest.as_posix()

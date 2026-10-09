@@ -80,6 +80,24 @@ def test_pipeline_fails_when_check_fails(
     assert any(r.stage == "check" and r.status == "FAILED" for r in results)
 
 
+def test_failed_check_stops_the_chain(
+    tmp_path: Path, lyrics_file: Path, fake_audio: Path, fake_clip: Path
+) -> None:
+    spec = build_spec(
+        lyrics_file, tmp_path / "project", audio_path=fake_audio, backgrounds=[fake_clip]
+    )
+    renderer = FakeRenderer(check_code=1, check_output="1 error(s), 0 warning(s)\nCheck failed\n")
+    renderer.parse_check = staticmethod(lambda _o: {"errors": 1, "warnings": 0, "passed": False})
+    pipeline = Pipeline(
+        spec, _services(FakeRunner(), FakeTranscriber(), renderer), tmp_path / "work"
+    )
+    results = pipeline.run(until="render", skip={"snapshot"})
+    stages = [result.stage for result in results]
+    assert "check" in stages
+    assert "render" not in stages  # a failed check gates the render
+    assert pipeline.failed()
+
+
 def test_resume_uses_cache(
     tmp_path: Path, lyrics_file: Path, fake_audio: Path, fake_clip: Path
 ) -> None:

@@ -52,7 +52,7 @@ def test_slow_stretches_to_fit_the_shot(tmp_path: Path) -> None:
     runner = FakeRunner()
     done = apply(blueprint, tmp_path / "out", runner)
     assert set(done) == {"sh01"}
-    assert blueprint.shots[0].media.endswith("sh01-slow.mp4")
+    assert blueprint.shots[0].media.endswith("sh01-slow-0.mp4")
     assert "setpts=2.0000*PTS" in " ".join(_ffmpeg(runner))
 
 
@@ -113,4 +113,4 @@ def test_only_restricts_to_one_shot(tmp_path: Path) -> None:
     done = apply(blueprint, tmp_path / "out", runner, only="sh02")
     assert set(done) == {"sh02"}
     assert blueprint.shots[0].media == ""
-    assert blueprint.shots[1].media.endswith("sh02-slow.mp4")
+    assert blueprint.shots[1].media.endswith("sh02-slow-0.mp4")

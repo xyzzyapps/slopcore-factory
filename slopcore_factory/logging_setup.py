@@ -1,7 +1,7 @@
 """Logging setup: console + per-run file.
 
-Logs land under ``<out_dir>/../logs`` by default so each song keeps its own
-trace, which is what we debug from.
+Logs land under the work dir's ``logs`` (``<out>.work/logs``) so each song keeps
+its own trace, which is what we debug from.
 """
 
 from __future__ import annotations

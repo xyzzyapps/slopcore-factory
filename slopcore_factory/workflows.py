@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 
 from .audio import AudioAnalysis, analyze, load_analysis
-from .blueprint import Blueprint, load_blueprint, save_blueprint
+from .blueprint import Blueprint
 from .blueprint_gen import generate as generate_blueprint
 from .budget import apply_estimate, guard
 from .lipsync import add_covers, attach_to_blueprint, plan_clips, plan_windows
@@ -19,6 +19,7 @@ from .lyrics import parse_lyrics
 from .models import Cue, FactorySpec, Transcript
 from .pipeline import Pipeline
 from .serde import cues_from_list, transcript_from_dict
+from .storyboard_md import load_plan, save_plan
 
 
 def ensure_aligned(spec: FactorySpec, work: Path, services) -> tuple[list[Cue], Transcript, float]:
@@ -48,18 +49,25 @@ def ensure_analysis(
     return analyze_song(spec, work, services, separate=separate)
 
 
+def song_backend(spec: FactorySpec) -> str:
+    """The backend a run would use: explicit, else suno when generating, else supplied."""
+    return str(spec.extra.get("song_backend") or ("suno" if spec.generate_song else "supplied"))
+
+
 def ensure_blueprint(
     spec: FactorySpec, work: Path, services, use_llm: bool = False, brief: str = ""
 ) -> Blueprint:
-    """Load the blueprint, generating one if it does not exist yet."""
-    path = Path(work) / "blueprint.yaml"
-    if path.exists():
-        return load_blueprint(path)
+    """Load the plan (``storyboard.md`` first), generating one if none exists."""
+    lyrics = parse_lyrics(spec.lyrics_path)
+    plan = load_plan(Path(spec.lyrics_path).parent, Path(work), lyrics)
+    if plan is not None:
+        plan[0].meta["song_backend"] = song_backend(spec)
+        return plan[0]
 
     cues, _transcript, duration = ensure_aligned(spec, work, services)
     blueprint = generate_blueprint(
         spec,
-        parse_lyrics(spec.lyrics_path),
+        lyrics,
         cues,
         duration,
         spec.theme_name,
@@ -68,8 +76,9 @@ def ensure_blueprint(
     )
     if not blueprint.budgets.cap_usd:
         blueprint.budgets.cap_usd = float(spec.extra.get("budget_usd", 0) or 0)
+    blueprint.meta["song_backend"] = song_backend(spec)
     apply_estimate(blueprint)
-    save_blueprint(blueprint, path)
+    save_plan(blueprint, Path(spec.lyrics_path).parent, Path(work), spec=spec)
     return blueprint
 
 
@@ -93,7 +102,7 @@ def plan_lipsync(
     clips = plan_clips(windows, blueprint.character, plate=plate, style=style)
     attach_to_blueprint(blueprint, windows, clips)
     guard(blueprint)
-    save_blueprint(blueprint, Path(work) / "blueprint.yaml")
+    save_plan(blueprint, Path(spec.lyrics_path).parent, Path(work), spec=spec)
     return blueprint
 
 
@@ -124,6 +133,7 @@ def generate_clips(
             reference_audio=spec.audio_path,
             quality=quality,
             reference_images=reference_images(Path(spec.lyrics_path).parent),
+            supersede_reason=str(spec.extra.get("supersede_reason") or "").strip() or None,
         )
     elif is_dry_run(spec):
         provider = DryRunClipProvider()
@@ -131,7 +141,7 @@ def generate_clips(
         # default: use files the user supplied, never call an API
         provider = SuppliedClipProvider(Path(spec.lyrics_path).parent)
     paths = generate_seedance_clips(blueprint, provider, clips_dir(spec))
-    save_blueprint(blueprint, Path(work) / "blueprint.yaml")
+    save_plan(blueprint, Path(spec.lyrics_path).parent, Path(work), spec=spec)
     return blueprint, paths
 
 
@@ -163,8 +173,23 @@ def apply_covers(
     divergences = {r.clip: r.divergence for r in results if r.divergence is not None}
     covers = add_covers(blueprint, divergences, transcript.words, analysis.gaps)
     guard(blueprint)
-    save_blueprint(blueprint, Path(work) / "blueprint.yaml")
+    save_plan(blueprint, Path(spec.lyrics_path).parent, Path(work), spec=spec)
     return blueprint, results, covers
+
+
+def sing(
+    spec: FactorySpec, work: Path, services, quality: str = "720p"
+) -> tuple[Blueprint, dict[str, Path], list, list]:
+    """The whole singing path in one command.
+
+    Plans the lipsync windows, resolves (or generates) the clips, measures the
+    drift, then adds the covers — each step writing back through the plan.
+    """
+    plan_lipsync(spec, work, services)
+    blueprint, paths = generate_clips(spec, work, services, quality=quality)
+    blueprint, results, _summary = run_avsync(spec, work, services)
+    blueprint, _results, covers = apply_covers(spec, work, services)
+    return blueprint, paths, results, covers
 
 
 def review(

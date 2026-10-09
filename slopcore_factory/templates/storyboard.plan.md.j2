@@ -30,10 +30,18 @@
 
 ## shots
 
-| shot | start | end | chapter | framing | tier | clip | treatment | scene | media |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| shot | start | end | chapter | section | framing | action | camera | tier | clip | treatment | value | scene | module | media | chrome | lift | meme |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 {% for s in shots %}
-| {{ s.id }} | {{ s.t0 }} | {{ s.t1 }} | {{ s.chapter }} | {{ s.framing }} | {{ s.tier }} | {{ s.clip }} | {{ s.treatment }} | {{ s.scene }} | {{ s.media }} |
+| {{ s.id }} | {{ s.t0 }} | {{ s.t1 }} | {{ s.chapter }} | {{ s.section }} | {{ s.framing }} | {{ s.action }} | {{ s.camera }} | {{ s.tier }} | {{ s.clip }} | {{ s.treatment }} | {{ s.value }} | {{ s.scene }} | {{ s.module }} | {{ s.media }} | {{ s.chrome }} | {{ s.lift }} | {{ s.meme }} |
+{% endfor %}
+
+## shot assets
+
+| shot | plate | depth | tracking |
+| --- | --- | --- | --- |
+{% for a in assets %}
+| {{ a.shot }} | {{ a.plate }} | {{ a.depth }} | {{ a.tracking }} |
 {% endfor %}
 
 ## lyrics
@@ -54,10 +62,10 @@
 
 ### clips
 
-| clip | sing | duration | reference | prompt |
-| --- | --- | --- | --- | --- |
+| clip | sing | duration | start | path | cover | plate | reference | words | prompt |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 {% for c in clips %}
-| {{ c.clip }} | {{ c.sing }} | {{ c.duration }} | {{ c.reference }} | {{ c.prompt }} |
+| {{ c.clip }} | {{ c.sing }} | {{ c.duration }} | {{ c.start }} | {{ c.path }} | {{ c.cover }} | {{ c.plate }} | {{ c.reference }} | {{ c.words }} | {{ c.prompt }} |
 {% endfor %}
 
 ## lipsync
