@@ -30,18 +30,10 @@
 
 ## shots
 
-| shot | start | end | chapter | section | framing | action | camera | tier | clip | treatment | value | scene | module | media | chrome | lift | meme |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| shot | start | end | chapter | section | framing | tier | clip | treatment | value | scene | module | media | chrome |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 {% for s in shots %}
-| {{ s.id }} | {{ s.t0 }} | {{ s.t1 }} | {{ s.chapter }} | {{ s.section }} | {{ s.framing }} | {{ s.action }} | {{ s.camera }} | {{ s.tier }} | {{ s.clip }} | {{ s.treatment }} | {{ s.value }} | {{ s.scene }} | {{ s.module }} | {{ s.media }} | {{ s.chrome }} | {{ s.lift }} | {{ s.meme }} |
-{% endfor %}
-
-## shot assets
-
-| shot | plate | depth | tracking |
-| --- | --- | --- | --- |
-{% for a in assets %}
-| {{ a.shot }} | {{ a.plate }} | {{ a.depth }} | {{ a.tracking }} |
+| {{ s.id }} | {{ s.t0 }} | {{ s.t1 }} | {{ s.chapter }} | {{ s.section }} | {{ s.framing }} | {{ s.tier }} | {{ s.clip }} | {{ s.treatment }} | {{ s.value }} | {{ s.scene }} | {{ s.module }} | {{ s.media }} | {{ s.chrome }} |
 {% endfor %}
 
 ## lyrics

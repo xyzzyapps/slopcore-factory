@@ -25,7 +25,6 @@ from .blueprint import (
     BLUEPRINT_VERSION,
     Animation,
     AnimationScene,
-    AssetNeeds,
     Blueprint,
     Budgets,
     Chapter,
@@ -87,10 +86,6 @@ def plan_text(spec: FactorySpec, work_dir: Path) -> str:
     plan = load_plan(lyrics_path.parent, Path(work_dir), lyrics)
     if plan is not None:
         blueprint, cues = plan
-        if not blueprint.meta.get("song_backend"):
-            blueprint.meta["song_backend"] = str(
-                spec.extra.get("song_backend") or ("suno" if spec.generate_song else "supplied")
-            )
     else:
         blueprint_path = Path(work_dir) / "blueprint.yaml"
         if not blueprint_path.exists():
@@ -144,15 +139,6 @@ def _plan_data(
         {"key": "retry_buffer", "value": f"{budgets.retry_buffer:.2f}"},
         {"key": "seedance_quality", "value": budgets.seedance_quality},
         {"key": "version", "value": blueprint.version},
-        {"key": "song_backend", "value": blueprint.meta.get("song_backend", "")},
-        {
-            "key": "generate_song",
-            "value": "true" if blueprint.meta.get("generate_song") else "false",
-        },
-        {
-            "key": "generate_clips",
-            "value": "true" if blueprint.meta.get("generate_clips") else "false",
-        },
     ]
     if dry_run is not None:
         settings.append({"key": "dry_run", "value": "true" if dry_run else "false"})
@@ -190,8 +176,6 @@ def _plan_data(
             "chapter": s.chapter,
             "section": _cell(s.section),
             "framing": _cell(s.framing),
-            "action": _cell(s.action),
-            "camera": _cell(s.camera),
             "tier": s.motion_tier,
             "clip": s.seedance_clip or "",
             "treatment": s.treatment,
@@ -200,17 +184,6 @@ def _plan_data(
             "module": _cell(s.animation.module),
             "media": _cell(s.media),
             "chrome": _cell(s.chrome),
-            "lift": f"{s.lift:g}",
-            "meme": _cell(s.meme_visual),
-        }
-        for s in shots_sorted
-    ]
-    assets = [
-        {
-            "shot": s.id,
-            "plate": _cell(s.assets.plate),
-            "depth": "yes" if s.assets.depth else "no",
-            "tracking": _cell(", ".join(s.assets.tracking)),
         }
         for s in shots_sorted
     ]
@@ -286,7 +259,6 @@ def _plan_data(
         "character": character,
         "chapters": chapters,
         "shots": shots,
-        "assets": assets,
         "lyrics": lyrics,
         "song_style": blueprint.meta.get("song_style") or song_style,
         "clips": clips,
@@ -417,31 +389,16 @@ def parse(text: str, lyrics: LyricsDoc | None = None) -> tuple[Blueprint, list[C
                 chapter=row.get("chapter", ""),
                 section=row.get("section", ""),
                 framing=row.get("framing", ""),
-                action=row.get("action", ""),
-                camera=row.get("camera", ""),
                 motion_tier=row.get("tier", "code") or "code",
                 seedance_clip=(row.get("clip") or None),
                 treatment=row.get("treatment", "loop") or "loop",
                 treatment_value=_num(row.get("value")),
                 media=row.get("media", ""),
                 chrome=row.get("chrome", ""),
-                lift=_num(row.get("lift")),
-                meme_visual=row.get("meme", ""),
                 animation=Animation(scene=row.get("scene", ""), module=row.get("module", "")),
             )
         )
     shots.sort(key=lambda shot: shot.t0)
-    asset_rows = {row["shot"]: row for row in _table(sections.get("shot assets", []))}
-    for shot in shots:
-        row = asset_rows.get(shot.id)
-        if row:
-            shot.assets = AssetNeeds(
-                plate=row.get("plate", ""),
-                depth=_flag(row.get("depth")),
-                tracking=[
-                    part.strip() for part in row.get("tracking", "").split(",") if part.strip()
-                ],
-            )
 
     lyric_rows = _table(sections.get("lyrics", []))
     for row in lyric_rows:
@@ -539,12 +496,7 @@ def parse(text: str, lyrics: LyricsDoc | None = None) -> tuple[Blueprint, list[C
         lipsync=lipsync,
         animation=animation,
         budgets=budgets,
-        meta={
-            "song_style": _song_block(sections),
-            "song_backend": settings.get("song_backend", ""),
-            "generate_song": _flag(settings.get("generate_song")),
-            "generate_clips": _flag(settings.get("generate_clips")),
-        },
+        meta={"song_style": _song_block(sections)},
     )
     return blueprint, _cues(lyric_rows, lyrics)
 
@@ -592,12 +544,6 @@ def apply_settings(spec: FactorySpec, settings: dict[str, str]) -> None:
         spec.audio_path = Path(settings["audio"])
     if settings.get("duration"):
         spec.duration = _num(settings.get("duration"))
-    if settings.get("song_backend"):
-        spec.extra["song_backend"] = settings["song_backend"]
-    if "generate_song" in settings:
-        spec.generate_song = _flag(settings.get("generate_song"))
-    if "generate_clips" in settings:
-        spec.generate_clips = _flag(settings.get("generate_clips"))
     if settings.get("budget_usd"):
         spec.extra["budget_usd"] = _num(settings.get("budget_usd"))
     if "dry_run" in settings:

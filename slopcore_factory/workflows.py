@@ -49,11 +49,6 @@ def ensure_analysis(
     return analyze_song(spec, work, services, separate=separate)
 
 
-def song_backend(spec: FactorySpec) -> str:
-    """The backend a run would use: explicit, else suno when generating, else supplied."""
-    return str(spec.extra.get("song_backend") or ("suno" if spec.generate_song else "supplied"))
-
-
 def ensure_blueprint(
     spec: FactorySpec, work: Path, services, use_llm: bool = False, brief: str = ""
 ) -> Blueprint:
@@ -61,7 +56,6 @@ def ensure_blueprint(
     lyrics = parse_lyrics(spec.lyrics_path)
     plan = load_plan(Path(spec.lyrics_path).parent, Path(work), lyrics)
     if plan is not None:
-        plan[0].meta["song_backend"] = song_backend(spec)
         return plan[0]
 
     cues, _transcript, duration = ensure_aligned(spec, work, services)
@@ -76,7 +70,6 @@ def ensure_blueprint(
     )
     if not blueprint.budgets.cap_usd:
         blueprint.budgets.cap_usd = float(spec.extra.get("budget_usd", 0) or 0)
-    blueprint.meta["song_backend"] = song_backend(spec)
     apply_estimate(blueprint)
     save_plan(blueprint, Path(spec.lyrics_path).parent, Path(work), spec=spec)
     return blueprint
@@ -175,21 +168,6 @@ def apply_covers(
     guard(blueprint)
     save_plan(blueprint, Path(spec.lyrics_path).parent, Path(work), spec=spec)
     return blueprint, results, covers
-
-
-def sing(
-    spec: FactorySpec, work: Path, services, quality: str = "720p"
-) -> tuple[Blueprint, dict[str, Path], list, list]:
-    """The whole singing path in one command.
-
-    Plans the lipsync windows, resolves (or generates) the clips, measures the
-    drift, then adds the covers — each step writing back through the plan.
-    """
-    plan_lipsync(spec, work, services)
-    blueprint, paths = generate_clips(spec, work, services, quality=quality)
-    blueprint, results, _summary = run_avsync(spec, work, services)
-    blueprint, _results, covers = apply_covers(spec, work, services)
-    return blueprint, paths, results, covers
 
 
 def review(

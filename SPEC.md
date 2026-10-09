@@ -185,11 +185,11 @@ when importable. `retry_buffer` is per-song: set 1.0 for a strict one-attempt-pe
 ## 9. Surfaces
 
 CLI: `init song align plan build check snapshot render run status blueprint storyboard
-analyze lipsync clips avsync covers review overlay match doctor sing repl`. `storyboard`
-takes `print` (default) / `write` / `run`; `match` takes `--render` / `--threshold` /
-`--otio`; `sing` runs lipsync -> clips -> avsync -> covers. The REPL adds `storyboard
-shot <id> [build]`, `treat` (`list` | `<shot>` | `<shot> <treatment> [value]`),
-`match [video] [otio]`, `doctor` and `sing`, plus `dryrun on|off` and `takes`.
+analyze lipsync clips avsync covers review overlay match doctor repl`. `storyboard` takes
+`print` (default) / `write` / `run`; `match` takes `--render` / `--threshold` / `--otio`.
+The REPL adds `storyboard shot <id> [build]`, `treat` (`list` | `<shot>` | `<shot>
+<treatment> [value]`), `match [video] [otio]` and `doctor`, plus `dryrun on|off` and
+`takes`.
 
 ## 10. Testing
 
@@ -219,6 +219,35 @@ songs/<song>/            generated projects
 songs/<song>.work/       work dir (blueprint, cues, treated, detections, cache, logs)
 ```
 
+| module | role |
+|---|---|
+| `cli.py` / `repl.py` | the two surfaces (argparse + `cmd`); both drive `workflows` / `pipeline` |
+| `config.py` | lyrics + `song.json` + flags -> `FactorySpec` |
+| `lyrics.py` | parse `lyrics.md` (front-matter, sections, lines) |
+| `models.py` | the shared dataclasses (`FactorySpec`, `LyricsDoc`, `Cue`, `Storyboard`, ...) |
+| `blueprint.py` | the plan schema (`Blueprint`, `Shot`, `SeedanceClip`, ...) + validation |
+| `blueprint_gen.py` | offline / LLM plan generation |
+| `storyboard.py` | the deterministic planner (the fallback) |
+| `storyboard_md.py` | the `storyboard.md` plan: `render`, `parse`, `load_plan`, `save_plan` |
+| `compiler.py` | plan -> render plan (`Storyboard` / `Frame` / `Group` / `Cue`) |
+| `compose.py` | render plan -> HyperFrames project (Jinja) |
+| `render.py` | the HyperFrames CLI driver (check / snapshot / render) |
+| `pipeline.py` | the stage chain + the cache + `unique_path` |
+| `workflows.py` | the steps the CLI and the REPL both call |
+| `song.py` / `localgen.py` | the song backends |
+| `timing.py` | whisper + line alignment |
+| `audio.py` | word gaps (+ an optional demucs stem) |
+| `lipsync.py` | window planning, prompts, covers |
+| `avsync.py` | clip-vs-song drift |
+| `clipgen.py` | Seedance clip resolution / generation |
+| `treat.py` / `detect.py` | per-shot ffmpeg treatments / YOLO detections |
+| `scenes.py` | the animation scenes |
+| `match.py` | render -> clip matching + OTIO |
+| `doctor.py` | the preflight |
+| `budget.py` | the estimate + the guard |
+| `theme.py` | the visual preset + fonts |
+| `serde.py` `cache.py` `process.py` `interfaces.py` `locator.py` `errors.py` | plumbing |
+
 ## 12. Decisions
 
 - HyperFrames only (MoviePy declined).
@@ -247,6 +276,8 @@ songs/<song>.work/       work dir (blueprint, cues, treated, detections, cache, 
   it exists (`storyboard_md.save_plan`), so the markdown stays the single live plan.
 - The quote matches the run: plates are never charged (image generation is a non-goal) and
   the song is charged only when the backend is Suno.
+- The free/paid line stays explicit: `lipsync` never spends, and paid generation runs only
+  on the CLI flags (`--song-backend suno` / `--generate-clips`), never from the plan.
 
 ## 13. Matching a render back to its clips
 
@@ -274,3 +305,15 @@ on it.
 (OpenCV, librosa, langchain, ultralytics), demucs and the sibling `slopcore-hf` checkout.
 The CLI and the REPL catch `SlopcoreFactoryError` and print the message plus the log
 directory instead of a traceback; a failed `check` stops the chain.
+
+## 15. Artifacts
+
+| what | where |
+|---|---|
+| the HyperFrames project | `<out>/index.html` (+ `compositions/`, `assets/`, `scenes/`) |
+| the plan | `storyboard.md`, beside `lyrics.md` |
+| the work dir | `<out>.work/` — `cache/`, `cues.json`, `transcript.json`, `audiomap.json`, `blueprint.yaml`, `treated/`, `detections/`, `logs/` |
+| the render | `<out>/../renders/<name>.mp4` (never overwritten: `-2`, `-3`, ...) |
+| the lyrics overlay | `<out>/../renders/<name>-lyrics.mov` (ProRes 4444 + alpha) |
+| the timelines | `<out>/../renders/<name>.otio`, `<name>-davinci.otio`, `<name>-match.json` |
+| the review | `<out>/reviews/review.md` + the snapshot frames |

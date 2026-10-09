@@ -34,7 +34,7 @@ class Repl(cmd.Cmd):
     intro = (
         "slopcore-factory REPL. Type 'help' for commands, 'quit' to leave.\n"
         "Commands: lyrics song takes storyboard treat blueprint analyze lipsync clips avsync "
-        "covers review match doctor sing dryrun quote compile build check snapshot render status"
+        "covers review match doctor dryrun quote compile build check snapshot render status"
     )
     prompt = "slopcore> "
 
@@ -285,9 +285,6 @@ class Repl(cmd.Cmd):
         )
         if not blueprint.budgets.cap_usd:
             blueprint.budgets.cap_usd = float(self.spec.extra.get("budget_usd", 0) or 0)
-        from .workflows import song_backend
-
-        blueprint.meta["song_backend"] = song_backend(self.spec)
         apply_estimate(blueprint)
         self.blueprint = blueprint
         path = save_blueprint(blueprint, self._blueprint_path())
@@ -406,20 +403,6 @@ class Repl(cmd.Cmd):
                 name=self.spec.title,
             )
             print(f"otio: {write_otio(timeline, renders / f'{name}-davinci.otio')}")
-
-    def do_sing(self, arg: str) -> None:
-        """sing [quality]      plan lipsync, resolve clips, measure drift, add covers."""
-        from .workflows import sing
-
-        quality = (arg or "").strip() or "720p"
-        blueprint, paths, results, covers = sing(
-            self.spec, self.work, self.services, quality=quality
-        )
-        print(f"windows: {len(blueprint.lipsync)}   clips: {len(paths)}")
-        for result in results:
-            state = "in sync" if result.in_sync else f"drift at {result.divergence}s"
-            print(f"  {result.clip:<8} {state}")
-        print(f"covers: {len(covers)}")
 
     def do_doctor(self, arg: str) -> None:
         """doctor            check python, ffmpeg, node, and the optional extras."""

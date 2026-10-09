@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from slopcore_factory.blueprint import (
-    AssetNeeds,
     Blueprint,
     Chapter,
     LipsyncWindow,
@@ -32,16 +31,11 @@ def _blueprint() -> Blueprint:
                 chapter="ch-love",
                 section="verse",
                 framing="medium",
-                action="clip",
-                camera="locked",
                 motion_tier="seedance",
                 seedance_clip="c01",
                 treatment="slow",
                 treatment_value=2.5,
                 chrome="no. 01",
-                lift=1.5,
-                meme_visual="meme",
-                assets=AssetNeeds(plate="p1", depth=True, tracking=["a", "b"]),
                 type=[ShotType(0, "subtitle", text="I'm all yours", position="lower", offset=3.0)],
             )
         ],
@@ -67,10 +61,9 @@ def test_plan_is_strict_markdown() -> None:
     assert "&#" not in text  # no HTML entities
     assert "\n\n\n" not in text  # no blank-line noise
     assert "| canvas | 1280x720 |" in text
-    shots_row = "| sh01 | 0.000 | 10.000 | ch-love | verse | medium | clip | locked | seedance |"
-    assert shots_row + " c01 | slow | 2.5 |  |  |  | no. 01 | 1.5 | meme |" in text
+    shots_row = "| sh01 | 0.000 | 10.000 | ch-love | verse | medium | seedance | c01 | slow |"
+    assert shots_row + " 2.5 |  |  |  | no. 01 |" in text
     assert "| c01 | no | 6.04 | 1.500 | songs/x/c01.mp4 | c00 | p2 | yes | la la |" in text
-    assert "| sh01 | p1 | yes | a, b |" in text
     assert "| 0 |  | I'm all yours | subtitle | lower | 3 |" in text
 
 
@@ -104,13 +97,6 @@ def test_parse_round_trips_the_plan() -> None:
     assert parsed.shots[0].treatment_value == 2.5  # the `value` column round-trips
     assert parsed.shots[0].chrome == "no. 01"
     assert parsed.shots[0].section == "verse"
-    assert parsed.shots[0].action == "clip"
-    assert parsed.shots[0].camera == "locked"
-    assert parsed.shots[0].lift == 1.5
-    assert parsed.shots[0].meme_visual == "meme"
-    assert parsed.shots[0].assets.plate == "p1"
-    assert parsed.shots[0].assets.depth is True
-    assert parsed.shots[0].assets.tracking == ["a", "b"]
     assert parsed.shots[0].type[0].offset == 3.0
     clip = parsed.seedance[0]
     assert clip.prompt == "a | pipe"  # the escaped pipe round-trips
@@ -160,25 +146,12 @@ def test_save_plan_falls_back_to_the_blueprint(tmp_path: Path) -> None:
     assert path.exists()
 
 
-def test_apply_settings_applies_the_run_flags(lyrics_file: Path, tmp_path: Path) -> None:
+def test_apply_settings_applies_canvas_and_duration(lyrics_file: Path, tmp_path: Path) -> None:
     from slopcore_factory.config import build_spec
     from slopcore_factory.storyboard_md import apply_settings
 
     spec = build_spec(lyrics_file, tmp_path / "project")
-    apply_settings(
-        spec,
-        {
-            "canvas": "1920x1080",
-            "fps": "24",
-            "duration": "123.0",
-            "song_backend": "suno",
-            "generate_song": "true",
-            "generate_clips": "true",
-        },
-    )
+    apply_settings(spec, {"canvas": "1920x1080", "fps": "24", "duration": "123.0"})
     assert (spec.width, spec.height) == (1920, 1080)
     assert spec.fps == 24
     assert spec.duration == 123.0
-    assert spec.extra["song_backend"] == "suno"
-    assert spec.generate_song is True
-    assert spec.generate_clips is True

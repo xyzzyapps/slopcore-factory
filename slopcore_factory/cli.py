@@ -64,7 +64,6 @@ HELP = {
     "storyboard": "print the plan, or write storyboard.md beside the lyrics",
     "match": "cut a render at its scenes and match each segment to a clip",
     "doctor": "check python, ffmpeg, node, and the optional extras",
-    "sing": "the whole singing path: lipsync -> clips -> avsync -> covers",
     "repl": "interactive shell over every factory capability",
 }
 
@@ -95,7 +94,6 @@ def build_parser() -> argparse.ArgumentParser:
         "storyboard",
         "match",
         "doctor",
-        "sing",
         "repl",
     ]:
         sp = sub.add_parser(name, help=HELP[name])
@@ -136,8 +134,6 @@ def build_parser() -> argparse.ArgumentParser:
             sp.add_argument("--render", type=Path, default=None, help="video to match")
             sp.add_argument("--threshold", type=float, default=0.12, help="scene-change threshold")
             sp.add_argument("--otio", action="store_true", help="also write an OTIO timeline")
-        if name == "sing":
-            sp.add_argument("--quality", default="720p", help="Seedance quality (480p/720p)")
     return parser
 
 
@@ -213,8 +209,6 @@ def _dispatch(args: argparse.Namespace) -> int:
         return _cmd_status(args.out)
     if args.command == "doctor":
         return _cmd_doctor(args)
-    if args.command == "sing":
-        return _cmd_sing(args)
     if args.command == "repl":
         return _cmd_repl(args)
     if args.command == "blueprint":
@@ -607,21 +601,6 @@ def _cmd_init(args: argparse.Namespace) -> int:
     print(f"  lyrics: {lyrics}")
     print(f"  drop audio at: {base / 'assets' / 'bgm.mp3'}")
     print(f"  then run: slopcore-factory build --lyrics {lyrics} --out {base}")
-    return 0
-
-
-def _cmd_sing(args: argparse.Namespace) -> int:
-    from .workflows import sing
-
-    spec = _make_spec(args)
-    work = _work_dir(spec)
-    setup_logging(work / "logs")
-    blueprint, paths, results, covers = sing(spec, work, _services(spec), quality=args.quality)
-    print(f"windows: {len(blueprint.lipsync)}   clips: {len(paths)}")
-    for result in results:
-        state = "in sync" if result.in_sync else f"drift at {result.divergence}s"
-        print(f"  {result.clip:<8} {state}")
-    print(f"covers: {len(covers)}")
     return 0
 
 

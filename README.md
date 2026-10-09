@@ -53,9 +53,12 @@ Check it worked:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\slopcore-factory.exe doctor
 ```
 
-You should see `116 passed` (or similar). If you do, everything is installed.
+You should see `116 passed` (or similar). `doctor` then lists the tools it found (ffmpeg,
+ffprobe, node, npx) and any optional extra that is missing — a missing extra only disables
+one feature.
 
 > Every command below starts with `.\.venv\Scripts\slopcore-factory.exe`. That's just "run
 > the tool from this project's Python environment". You must run it from the
@@ -154,6 +157,21 @@ $out = "songs/my-song-video"
 .\.venv\Scripts\slopcore-factory.exe render --lyrics $ly --out $out
 ```
 
+### The plan (`storyboard.md`)
+
+`storyboard.md` is the source of truth: a strict-markdown plan (settings, chapters, shots,
+every lyric line with its time and placement, and the prompts sent to the servers). Edit it
+in any editor, then run it:
+
+```powershell
+.\.venv\Scripts\slopcore-factory.exe storyboard write --lyrics $ly --out $out   # (re)write
+.\.venv\Scripts\slopcore-factory.exe storyboard run   --lyrics $ly --out $out   # execute
+```
+
+`lipsync`, `clips`, `covers` and the REPL's `treat` write their changes back through this
+file, so it always reflects the live plan. If you never write one, the automatic planner
+(`blueprint`) is used instead.
+
 ### Where your files end up
 
 | What | Where |
@@ -171,6 +189,14 @@ Three places matter: the project in `--out`, the work dir at `<out>.work/` (stag
 cues, `blueprint.yaml`, logs), and the plan `storyboard.md` beside your `lyrics.md`. Run
 `slopcore-factory doctor` to check your tools.
 
+### Into an editor (DaVinci, Premiere, ...)
+
+- `overlay` renders the lyrics-only layer as a transparent ProRes 4444 MOV to drop on a
+  video track above your clips.
+- `songs/renders/<out>.otio` is an OpenTimelineIO timeline (V1 clips, V2 lyrics, A1 song).
+- `match` reverse-engineers an edit: it cuts a finished render at its scenes, matches each
+  segment back to a clip, and (with `--otio`) writes a timeline.
+
 ---
 
 ## 6. The interactive shell (REPL)
@@ -184,7 +210,7 @@ If you'd rather type commands one at a time:
 ```
 slopcore> storyboard write  # write storyboard.md (the plan) beside the lyrics
 slopcore> storyboard        # print it
-slopcore> storyboard run    # execute it: align -> generate -> build -> check -> render
+slopcore> storyboard run    # execute it: align -> build -> check -> render
 slopcore> storyboard shot sh03   # inspect one shot (times, lyrics, prompt)
 slopcore> treat list        # the ffmpeg treatments per shot
 slopcore> treat sh02 slow   # set + run a treatment
@@ -213,7 +239,7 @@ Type `help` inside the shell to list everything.
 | `overlay` | renders the lyrics-only layer (text only, transparent) as a MOV for an editor |
 | `match` | cuts a finished render at its scenes and matches each segment back to a clip |
 | `doctor` | checks python, ffmpeg, node and the optional extras |
-| `sing` | runs the whole singing path: lipsync -> clips -> avsync -> covers |
+| `treat` | runs the ffmpeg treatments (slow/interpolate, pingpong, hold, stutter) |
 | `build` | builds the video project |
 | `check` | lints/tests the project (must pass before rendering) |
 | `snapshot` | saves still frames |
